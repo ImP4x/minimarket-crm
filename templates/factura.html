@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% block title %}Factura - EcoMarket{% endblock %}
+{% block content %}
+<div class="fade-in">
+    <div class="form-card" style="max-width: 600px; margin: 0 auto;">
+        <div style="text-align: center; margin-bottom: 2rem;">
+            <img src="{{ url_for('static', filename='img/logo.png') }}" alt="EcoMarket" style="height: 60px;">
+            <h1 class="section-title">Factura de Venta</h1>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; margin-bottom: 2rem;">
+            <div>
+                <h3 style="color: var(--color-primary); margin-bottom: 1rem;">Información de Factura</h3>
+                <p><strong>Factura ID:</strong> {{ factura._id }}</p>
+                <p><strong>Fecha:</strong> {{ factura.fecha.strftime("%Y-%m-%d %H:%M:%S") }}</p>
+                <p><strong>Atendido por:</strong> {{ factura.vendedor or "N/A" }}</p>
+            </div>
+            <div>
+                <h3 style="color: var(--color-primary); margin-bottom: 1rem;">Cliente</h3>
+                <p><strong>Nombre:</strong> {{ factura.cliente }}</p>
+                <p><strong>Email:<br></strong> 
+                    <span class="factura-email">{{ factura.cliente_email or "No especificado" }}</span>
+                </p>
+            </div>
+        </div>
+
+        <div style="background: var(--color-light); padding: 1.5rem; border-radius: var(--border-radius); margin-bottom: 2rem;">
+            <h3 style="color: var(--color-primary); margin-bottom: 1rem;">Detalle de Venta</h3>
+            <table style="width: 100%; border-collapse: collapse;">
+                <thead>
+                    <tr style="border-bottom: 2px solid var(--color-primary);">
+                        <th style="text-align: left; padding: 0.5rem;">Producto</th>
+                        <th style="text-align: center; padding: 0.5rem;">Cantidad</th>
+                        <th style="text-align: right; padding: 0.5rem;">Total</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td style="padding: 0.5rem;">{{ factura.producto }}</td>
+                        <td style="text-align: center; padding: 0.5rem;">{{ factura.cantidad }}</td>
+                        <td style="text-align: right; padding: 0.5rem; font-weight: bold; color: var(--color-primary);">
+                            ${{ "%.2f"|format(factura.total) }}
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div style="text-align: center; margin-bottom: 2rem;">
+            <a href="{{ url_for('ventas.descargar_factura_pdf', venta_id=factura.venta_id) }}" 
+               class="btn btn-success">📄 Descargar PDF</a>
+        </div>
+
+        <div style="text-align: center;">
+            <a href="{{ url_for('ventas.ventas') }}" class="btn btn-secondary">← Volver a Ventas</a>
+        </div>
+    </div>
+</div>
+
+<!-- Responsive para móvil -->
+<style>
+@media (max-width: 768px) {
+    .form-card > div:first-of-type {
+        grid-template-columns: 1fr !important;
+        gap: 1rem !important;
+    }
+    
+    .factura-email {
+        font-size: 0.8rem !important;
+    }
+}
+</style>
+{% endblock %}

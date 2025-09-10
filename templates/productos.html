@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% block title %}Gestión de Productos - EcoMarket{% endblock %}
+{% block content %}
+<div class="fade-in">
+    <h1 class="section-title">Gestión de Productos</h1>
+
+    <!-- ➕ Crear -->
+    <div class="form-card">
+        <h2 class="section-title">Crear Nuevo Producto</h2>
+        <form method="POST">
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Nombre *</label>
+                    <input type="text" name="nombre" class="form-control" required>
+                </div>
+                <div class="form-group">
+                    <label>Precio *</label>
+                    <input type="number" name="precio" step="0.01" class="form-control" required>
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Categoría</label>
+                    <input type="text" name="categoria" class="form-control">
+                </div>
+                <div class="form-group">
+                    <label>Cantidad Inicial</label>
+                    <input type="number" name="cantidad" min="0" value="0" class="form-control">
+                </div>
+            </div>
+            <button class="btn btn-success" type="submit">✅ Crear Producto</button>
+        </form>
+    </div>
+
+    <!-- 📋 Listado CON SCROLL HORIZONTAL -->
+    <h2 class="section-title">Lista de Productos</h2>
+    <div class="table-container">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Nombre</th>
+                    <th>Precio</th>
+                    <th>Categoría</th>
+                    <th>Stock</th>
+                    <th>Fecha Registro</th>
+                    <th>Acciones</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for p in productos %}
+                <tr>
+                    <form method="POST" action="{{ url_for('productos.editar_producto', producto_id=p._id) }}">
+                        <td><input type="text" name="nombre" value="{{ p.nombre }}"></td>
+                        <td><input type="number" step="0.01" name="precio" value="{{ p.precio }}"></td>
+                        <td><input type="text" name="categoria" value="{{ p.categoria }}"></td>
+                        <td><input type="number" name="cantidad" value="{{ p.stock_info.cantidad if p.stock_info else 0 }}"></td>
+                        <td>{{ p.fecha_registro.strftime('%Y-%m-%d') if p.fecha_registro else '-' }}</td>
+                        <td>
+                            <button class="btn btn-success" type="submit" style="margin-right: 5px;">💾</button>
+                        </td>
+                    </form>
+                    <td>
+                        <form method="POST" action="{{ url_for('productos.eliminar_producto_route', producto_id=p._id) }}" 
+                              onsubmit="return confirm('¿Eliminar producto?');" style="display:inline;">
+                            <button class="btn btn-danger" type="submit">🗑️</button>
+                        </form>
+                    </td>
+                </tr>
+                {% else %}
+                <tr><td colspan="7" style="text-align: center; color: #666;">No hay productos registrados</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <div style="text-align: center; margin-top: 2rem;">
+        <a href="{{ url_for('auth.dashboard_admin') if session['usuario']['rol'] == 'administrador' else url_for('auth.dashboard_vendedor') }}" 
+           class="btn btn-secondary">← Volver al Panel</a>
+    </div>
+</div>
+{% endblock %}

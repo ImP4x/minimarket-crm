@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}EcoMarket - Sistema de Gestión{% endblock %}</title>
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='img/favicon.png') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body class="main-layout">
+    <!-- Header -->
+    <header class="header">
+        <div class="header-logo">
+            <img src="{{ url_for('static', filename='img/logo.png') }}" alt="EcoMarket Logo">
+        </div>
+        
+        {% if session.get('usuario') %}
+        <div class="user-info">
+            <div class="user-avatar">
+                {{ session['usuario']['nombre'][0].upper() }}
+            </div>
+            <div class="user-details">
+                <h4>{{ session['usuario']['nombre'] }}</h4>
+                <span>{{ session['usuario']['email'] }} • {{ session['usuario']['rol']|title }}</span>
+            </div>
+            <div class="user-dropdown">
+                <div style="margin-bottom: 1rem;">
+                    <strong>{{ session['usuario']['nombre'] }}</strong><br>
+                    <small>{{ session['usuario']['email'] }}</small><br>
+                    <small style="color: #666;">Rol: {{ session['usuario']['rol']|title }}</small>
+                </div>
+                <a href="{{ url_for('auth.logout') }}" class="logout-btn">
+                    <svg class="logout-icon" viewBox="0 0 24 24">
+                        <path d="M16,17V14H9V10H16V7L21,12L16,17M14,2A2,2 0 0,1 16,4V6H14V4H5V20H14V18H16V20A2,2 0 0,1 14,22H5A2,2 0 0,1 3,20V4A2,2 0 0,1 5,2H14Z"/>
+                    </svg>
+                    Cerrar Sesión
+                </a>
+            </div>
+        </div>
+        {% endif %}
+    </header>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <p>&copy; 2025 EcoMarket CRM. Todos los derechos reservados. | Desarrollado por Willian Lozada y Javier Ramos</p>
+    </footer>
+
+    <!-- Contenedor para mensajes flash -->
+    <div class="flash-messages"></div>
+
+    <!-- Mensajes Flash de Flask -->
+    {% with messages = get_flashed_messages() %}
+        {% if messages %}
+            {% for message in messages %}
+                <div data-flash="success">{{ message }}</div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>

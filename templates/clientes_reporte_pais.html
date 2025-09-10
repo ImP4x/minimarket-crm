@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}Reporte por País - EcoMarket{% endblock %}
+{% block content %}
+<div class="fade-in">
+    <h1 class="section-title">📊 Reporte: Clientes por País</h1>
+
+    <div class="table-container">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>País</th>
+                    <th style="text-align: center;">Total de Clientes</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in datos %}
+                <tr>
+                    <td>
+                        <strong>{{ item._id if item._id else 'Sin Especificar' }}</strong>
+                    </td>
+                    <td style="text-align: center;">
+                        <span style="background: var(--color-secondary); color: var(--color-dark); padding: 4px 12px; border-radius: 20px; font-weight: bold;">
+                            {{ item.total }}
+                        </span>
+                    </td>
+                </tr>
+                {% else %}
+                <tr><td colspan="2" style="text-align: center; color: #666;">No hay datos disponibles</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <div style="text-align: center; margin-top: 2rem;">
+        <a href="{{ url_for('cliente.clientes') }}" class="btn btn-secondary">← Volver a Clientes</a>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+{% block title %}Gestión de Clientes - EcoMarket{% endblock %}
+{% block content %}
+<div class="fade-in">
+    <h1 class="section-title">Gestión de Clientes</h1>
+
+    <!-- 🔎 Buscar -->
+    <div class="search-bar">
+        <form method="GET" action="{{ url_for('cliente.clientes') }}" style="display: flex; gap: 1rem; align-items: center; width: 100%;">
+            <input type="text" name="q" placeholder="Buscar por nombre, email, ciudad o país" value="{{ q or '' }}" class="search-input">
+            <button class="btn btn-secondary" type="submit">🔍 Buscar</button>
+            <a class="btn btn-secondary" href="{{ url_for('cliente.reporte_clientes_por_pais') }}">📊 Reporte por país</a>
+        </form>
+    </div>
+
+    <!-- ➕ Crear -->
+    <div class="form-card">
+        <h2 class="section-title">Crear Nuevo Cliente</h2>
+        <form method="POST" action="{{ url_for('cliente.clientes') }}">
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Nombre *</label>
+                    <input type="text" name="nombre" class="form-control" required>
+                </div>
+                <div class="form-group">
+                    <label>Email</label>
+                    <input type="email" name="email" class="form-control">
+                </div>
+                <div class="form-group">
+                    <label>Teléfono</label>
+                    <input type="text" name="telefono" class="form-control">
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Dirección</label>
+                    <input type="text" name="direccion" class="form-control">
+                </div>
+                <div class="form-group">
+                    <label>Ciudad</label>
+                    <input type="text" name="ciudad" class="form-control">
+                </div>
+                <div class="form-group">
+                    <label>País</label>
+                    <input type="text" name="pais" class="form-control">
+                </div>
+            </div>
+            <button class="btn btn-success" type="submit">✅ Crear Cliente</button>
+        </form>
+    </div>
+
+    <!-- 📋 Listado CON SCROLL HORIZONTAL -->
+    <h2 class="section-title">Lista de Clientes</h2>
+    <div class="table-container">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Nombre</th>
+                    <th>Email</th>
+                    <th>Teléfono</th>
+                    <th>Dirección</th>
+                    <th>Ciudad</th>
+                    <th>País</th>
+                    <th>Fecha Registro</th>
+                    <th>Acciones</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for c in clientes %}
+                <tr>
+                    <form method="POST" action="{{ url_for('cliente.editar_cliente', client_id=c._id) }}">
+                        <td><strong>{{ c.id_cliente }}</strong></td>
+                        <td><input type="text" name="nombre" value="{{ c.nombre }}"></td>
+                        <td><input type="email" name="email" value="{{ c.email }}"></td>
+                        <td><input type="text" name="telefono" value="{{ c.telefono }}"></td>
+                        <td><input type="text" name="direccion" value="{{ c.direccion }}"></td>
+                        <td><input type="text" name="ciudad" value="{{ c.ciudad }}"></td>
+                        <td><input type="text" name="pais" value="{{ c.pais }}"></td>
+                        <td>
+                            {% if c.fecha_registro %}
+                                {{ c.fecha_registro.strftime('%Y-%m-%d %H:%M') }}
+                            {% else %}
+                                -
+                            {% endif %}
+                        </td>
+                        <td>
+                            <button class="btn btn-success" type="submit" style="margin-right: 5px;">💾</button>
+                        </td>
+                    </form>
+                    <td>
+                        <form method="POST" action="{{ url_for('cliente.eliminar_cliente_route', client_id=c._id) }}" 
+                              onsubmit="return confirm('¿Seguro que deseas eliminar este cliente?');" style="display:inline;">
+                            <button class="btn btn-danger" type="submit">🗑️</button>
+                        </form>
+                    </td>
+                </tr>
+                {% else %}
+                <tr><td colspan="10" style="text-align: center; color: #666;">No hay clientes registrados</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <div style="text-align: center; margin-top: 2rem;">
+        <a href="{{ url_for('auth.dashboard_admin') if session['usuario']['rol'] == 'administrador' else url_for('auth.dashboard_vendedor') }}" 
+           class="btn btn-secondary">← Volver al Panel</a>
+    </div>
+</div>
+{% endblock %}

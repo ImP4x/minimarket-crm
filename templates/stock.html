@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+{% block title %}Stock de Productos - EcoMarket{% endblock %}
+{% block content %}
+<div class="fade-in">
+    <h1 class="section-title">📦 Stock de Productos</h1>
+
+    <div class="table-container">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Producto</th>
+                    <th>Precio</th>
+                    <th>Stock Disponible</th>
+                    <th>Estado</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for p in productos %}
+                <tr>
+                    <td><strong>{{ p.nombre }}</strong></td>
+                    <td>${{ "%.2f"|format(p.precio) }}</td>
+                    <td>
+                        {% if p.stock > 10 %}
+                            <span class="stock-badge stock-high">{{ p.stock }} unidades</span>
+                        {% elif p.stock > 0 %}
+                            <span class="stock-badge stock-medium">{{ p.stock }} unidades</span>
+                        {% else %}
+                            <span class="stock-badge stock-low">{{ p.stock }} unidades</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if p.stock > 10 %}
+                            <span class="status-available">✅ Disponible</span>
+                        {% elif p.stock > 0 %}
+                            <span class="status-low">⚠️ Bajo Stock</span>
+                        {% else %}
+                            <span class="status-out">❌ Agotado</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% else %}
+                <tr><td colspan="4" style="text-align: center; color: #666;">No hay productos registrados</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <div style="text-align: center; margin-top: 2rem;">
+        <a href="{{ url_for('ventas.ventas') }}" class="btn btn-secondary">← Volver a Ventas</a>
+    </div>
+</div>
+
+<style>
+/* Estilos para badges de stock */
+.stock-badge {
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-weight: bold;
+    display: inline-block;
+}
+
+.stock-high {
+    background: var(--color-success);
+    color: white;
+}
+
+.stock-medium {
+    background: var(--color-warning);
+    color: var(--color-dark);
+}
+
+.stock-low {
+    background: var(--color-danger);
+    color: white;
+}
+
+/* Estilos para estados */
+.status-available {
+    color: var(--color-success);
+    font-weight: bold;
+}
+
+.status-low {
+    color: var(--color-warning);
+    font-weight: bold;
+}
+
+.status-out {
+    color: var(--color-danger);
+    font-weight: bold;
+}
+</style>
+{% endblock %}

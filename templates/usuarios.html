@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+{% block title %}Gestión de Usuarios - EcoMarket{% endblock %}
+{% block content %}
+<div class="fade-in">
+    <h1 class="section-title">Gestión de Usuarios</h1>
+
+    <!-- Formulario para crear nuevo usuario -->
+    <div class="form-card">
+        <h2 class="section-title">Crear Nuevo Usuario</h2>
+        <form method="POST" action="{{ url_for('usuarios.usuarios') }}">
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Nombre *</label>
+                    <input type="text" name="nombre_usuario" class="form-control" required>
+                </div>
+                <div class="form-group">
+                    <label>Email *</label>
+                    <input type="email" name="email_usuario" class="form-control" required>
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Contraseña *</label>
+                    <input type="password" name="password_usuario" class="form-control" required>
+                </div>
+                <div class="form-group">
+                    <label>Rol</label>
+                    <select name="rol_usuario" class="form-control">
+                        <option value="none" selected>none</option>
+                        <option value="administrador">Administrador</option>
+                        <option value="vendedor">Vendedor</option>
+                    </select>
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Estado</label>
+                    <select name="estado_usuario" class="form-control">
+                        <option value="inactivo" selected>Inactivo</option>
+                        <option value="activo">Activo</option>
+                    </select>
+                </div>
+            </div>
+            <button class="btn btn-success" type="submit">✅ Crear Usuario</button>
+        </form>
+    </div>
+
+    <!-- 📋 Listado CON SCROLL HORIZONTAL -->
+    <h2 class="section-title">Lista de Usuarios</h2>
+    <div class="table-container">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Nombre</th>
+                    <th>Email</th>
+                    <th>Rol</th>
+                    <th>Estado</th>
+                    <th>Nueva Contraseña</th>
+                    <th>Fecha Registro</th>
+                    <th>Acciones</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for u in usuarios %}
+                <tr>
+                    <form method="POST" action="{{ url_for('usuarios.editar_usuario', user_id=u._id) }}">
+                        <td><strong>{{ u.id_usuario }}</strong></td>
+                        <td><input type="text" name="nombre" value="{{ u.nombre }}"></td>
+                        <td><input type="email" name="email" value="{{ u.email }}"></td>
+                        <td>
+                            <select name="rol">
+                                <option value="administrador" {% if u.rol == "administrador" %}selected{% endif %}>Administrador</option>
+                                <option value="vendedor" {% if u.rol == "vendedor" %}selected{% endif %}>Vendedor</option>
+                                <option value="none" {% if u.rol == "none" %}selected{% endif %}>none</option>
+                            </select>
+                        </td>
+                        <td>
+                            <select name="estado">
+                                <option value="activo" {% if u.estado == "activo" %}selected{% endif %}>Activo</option>
+                                <option value="inactivo" {% if u.estado == "inactivo" %}selected{% endif %}>Inactivo</option>
+                            </select>
+                        </td>
+                        <td>
+                            <input type="password" name="nueva_password" placeholder="Dejar vacío si no cambia">
+                        </td>
+                        <td>{{ u.fecha_registro.strftime('%Y-%m-%d') if u.fecha_registro else '-' }}</td>
+                        <td>
+                            <button class="btn btn-success" type="submit" style="margin-right: 5px;">💾</button>
+                        </td>
+                    </form>
+                    <td>
+                        <form method="POST" action="{{ url_for('usuarios.eliminar_usuario_route', user_id=u._id) }}" 
+                              onsubmit="return confirm('Eliminar usuario?');">
+                            <button class="btn btn-danger" type="submit">🗑️</button>
+                        </form>
+                    </td>
+                </tr>
+                {% else %}
+                <tr><td colspan="9" style="text-align: center; color: #666;">No hay usuarios registrados</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <div style="text-align: center; margin-top: 2rem;">
+        <a href="{{ url_for('auth.dashboard_admin') }}" class="btn btn-secondary">← Volver al Panel</a>
+    </div>
+</div>
+{% endblock %}

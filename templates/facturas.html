@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}Historial de Facturas - EcoMarket{% endblock %}
+{% block content %}
+<div class="fade-in">
+    <h1 class="section-title">📄 Historial de Facturas</h1>
+
+    <div class="table-container">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>ID Factura</th>
+                    <th>Cliente</th>
+                    <th>Producto</th>
+                    <th>Cantidad</th>
+                    <th>Total</th>
+                    <th>Vendedor</th>
+                    <th>Fecha</th>
+                    <th>Acciones</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for f in facturas %}
+                <tr>
+                    <td><strong>{{ f._id }}</strong></td>
+                    <td>{{ f.cliente }}</td>
+                    <td>{{ f.producto }}</td>
+                    <td style="text-align: center;">{{ f.cantidad }}</td>
+                    <td style="text-align: right; color: var(--color-primary); font-weight: bold;">
+                        ${{ "%.2f"|format(f.total) }}
+                    </td>
+                    <td>{{ f.vendedor or 'N/A' }}</td>
+                    <td>{{ f.fecha.strftime('%Y-%m-%d %H:%M') }}</td>
+                    <td>
+                        <a href="{{ url_for('ventas.ver_factura', venta_id=f.venta_id) }}" 
+                           class="btn btn-secondary" style="font-size: 0.8rem; padding: 6px 12px;">
+                            👁️ Ver
+                        </a>
+                    </td>
+                </tr>
+                {% else %}
+                <tr><td colspan="8" style="text-align: center; color: #666;">No hay facturas registradas</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <div style="text-align: center; margin-top: 2rem;">
+        <a href="{{ url_for('ventas.ventas') }}" class="btn btn-secondary">← Volver a Ventas</a>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}Registro de Ventas - EcoMarket{% endblock %}
+{% block content %}
+<div class="fade-in">
+    <h1 class="section-title">Registro de Ventas</h1>
+
+    <!-- Formulario de venta -->
+    <div class="form-card">
+        <h2 class="section-title">Nueva Venta</h2>
+        <form method="POST">
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="cliente">Cliente *</label>
+                    <select id="cliente" name="cliente" class="form-control" required>
+                        <option value="">Seleccionar cliente...</option>
+                        {% for c in clientes %}
+                            <option value="{{ c._id }}">{{ c.nombre }} ({{ c.email or 'Sin email' }})</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="producto">Producto *</label>
+                    <select id="producto" name="producto" class="form-control" required>
+                        <option value="">Seleccionar producto...</option>
+                        {% for p in productos %}
+                            <option value="{{ p._id }}">{{ p.nombre }} - ${{ "%.2f"|format(p.precio) }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="cantidad">Cantidad *</label>
+                    <input type="number" id="cantidad" name="cantidad" min="1" class="form-control" required>
+                </div>
+            </div>
+            <button class="btn btn-success" type="submit">🛒 Registrar Venta</button>
+        </form>
+    </div>
+
+    <!-- Botones de acción -->
+    <div class="action-buttons">
+        <a href="{{ url_for('ventas.ver_stock') }}" class="btn btn-secondary">📦 Ver Stock Disponible</a>
+        <a href="{{ url_for('ventas.listar_facturas_view') }}" class="btn btn-secondary">📄 Ver Todas las Facturas</a>
+    </div>
+
+    <div style="text-align: center; margin-top: 2rem;">
+        <a href="{{ url_for('auth.dashboard_admin') if session['usuario']['rol'] == 'administrador' else url_for('auth.dashboard_vendedor') }}" 
+           class="btn btn-secondary">← Volver al Panel</a>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Iniciar Sesión - EcoMarket</title>
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='img/favicon.png') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body>
+    <div class="auth-container">
+        <div class="auth-card">
+            <div class="auth-logo">
+                <img src="{{ url_for('static', filename='img/logo.png') }}" alt="EcoMarket Logo">
+            </div>
+            
+            <h2 class="auth-title">Iniciar Sesión</h2>
+            
+            <form method="POST">
+                <div class="form-group">
+                    <input type="email" name="email" class="form-input" placeholder="Correo electrónico" required>
+                </div>
+                
+                <div class="form-group">
+                    <input type="password" name="password" class="form-input" placeholder="Contraseña" required>
+                </div>
+                
+                <button type="submit" class="btn-primary">Ingresar</button>
+            </form>
+            
+            <div class="auth-links">
+                <a href="{{ url_for('auth.register') }}">Registrarse</a> | 
+                <a href="{{ url_for('auth.reset_password') }}">¿Olvidaste tu contraseña?</a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Mensajes Flash -->
+    {% with messages = get_flashed_messages() %}
+        {% if messages %}
+            {% for message in messages %}
+                <div data-flash="error">{{ message }}</div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>
