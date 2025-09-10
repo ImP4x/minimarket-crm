@@ -25,7 +25,6 @@ def listar_productos():
             p["stock"] = 0
     return docs
 
-
 def registrar_producto(nombre, precio, cantidad_inicial=0):
     """
     Crea un producto y su registro de stock inicial.
@@ -40,7 +39,6 @@ def registrar_producto(nombre, precio, cantidad_inicial=0):
     stock.insert_one({"producto_id": prod_id, "cantidad": int(cantidad_inicial)})
     return str(prod_id)
 
-
 def obtener_producto(producto_id):
     """Devuelve el documento del producto (o None). Acepta str/ObjectId."""
     try:
@@ -48,14 +46,12 @@ def obtener_producto(producto_id):
     except Exception:
         return None
 
-
 def obtener_stock(producto_id):
     """Devuelve el documento de stock para un producto (o None)."""
     try:
         return stock.find_one({"producto_id": ObjectId(str(producto_id))})
     except Exception:
         return None
-
 
 def actualizar_stock(producto_id, delta):
     """
@@ -71,7 +67,6 @@ def actualizar_stock(producto_id, delta):
     except Exception as e:
         print("❌ actualizar_stock error:", e)
         return {"matched_count": 0, "modified_count": 0}
-
 
 # -----------------------
 # Ventas / Facturación
@@ -135,7 +130,6 @@ def registrar_venta(cliente, producto_id, cantidad, vendedor=None):
 
     return str(venta_id), None
 
-
 def obtener_factura(venta_id):
     """
     Busca en 'historial_facturas' el documento que tenga venta_id = ObjectId(venta_id).
@@ -147,13 +141,98 @@ def obtener_factura(venta_id):
     except Exception:
         return None
 
-
 def listar_facturas():
     """
     Devuelve todas las facturas ordenadas por fecha descendente.
     """
     return list(facturas.find().sort("fecha", -1))
 
+# -----------------------
+# NUEVO: Reportes de Ventas
+# -----------------------
+def obtener_ventas_por_periodo(fecha_inicio, fecha_fin):
+    """
+    Obtiene estadísticas de ventas por periodo específico.
+    Retorna un diccionario con total de ventas, cantidad de transacciones, etc.
+    """
+    try:
+        # Pipeline para obtener estadísticas generales
+        pipeline = [
+            {"$match": {"fecha": {"$gte": fecha_inicio, "$lte": fecha_fin}}},
+            {"$group": {
+                "_id": None,
+                "total_ventas": {"$sum": "$total"},
+                "cantidad_transacciones": {"$sum": 1},
+                "promedio_venta": {"$avg": "$total"}
+            }}
+        ]
+        resultado = list(ventas.aggregate(pipeline))
+        
+        if resultado:
+            stats = resultado[0]
+            return {
+                "total_ventas": round(stats.get("total_ventas", 0), 2),
+                "cantidad_transacciones": stats.get("cantidad_transacciones", 0),
+                "promedio_venta": round(stats.get("promedio_venta", 0), 2)
+            }
+        else:
+            return {
+                "total_ventas": 0.0,
+                "cantidad_transacciones": 0,
+                "promedio_venta": 0.0
+            }
+    except Exception as e:
+        print(f"❌ Error obtener_ventas_por_periodo: {e}")
+        return {
+            "total_ventas": 0.0,
+            "cantidad_transacciones": 0,
+            "promedio_venta": 0.0
+        }
+
+def obtener_ventas_detalladas_por_periodo(fecha_inicio, fecha_fin):
+    """
+    Obtiene lista detallada de ventas por periodo con información de cliente y producto.
+    """
+    try:
+        pipeline = [
+            {"$match": {"fecha": {"$gte": fecha_inicio, "$lte": fecha_fin}}},
+            {"$lookup": {
+                "from": "clientes",
+                "localField": "cliente_id",
+                "foreignField": "_id",
+                "as": "cliente_info"
+            }},
+            {"$lookup": {
+                "from": "productos", 
+                "localField": "producto_id",
+                "foreignField": "_id",
+                "as": "producto_info"
+            }},
+            {"$sort": {"fecha": -1}}
+        ]
+        
+        resultado = list(ventas.aggregate(pipeline))
+        
+        # Procesar resultados para facilitar uso en template
+        ventas_procesadas = []
+        for venta in resultado:
+            cliente = venta.get("cliente_info", [{}])[0]
+            producto = venta.get("producto_info", [{}])[0]
+            
+            ventas_procesadas.append({
+                "_id": venta["_id"],
+                "fecha": venta["fecha"],
+                "cliente_nombre": cliente.get("nombre", "Cliente no encontrado"),
+                "producto_nombre": producto.get("nombre", "Producto no encontrado"),
+                "cantidad": venta["cantidad"],
+                "total": venta["total"],
+                "vendedor": venta.get("vendedor", "N/A")
+            })
+        
+        return ventas_procesadas
+    except Exception as e:
+        print(f"❌ Error obtener_ventas_detalladas_por_periodo: {e}")
+        return []
 
 # -----------------------
 # Utilidades / Depuración
