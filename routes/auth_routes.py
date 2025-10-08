@@ -1,19 +1,56 @@
 from flask import Blueprint, render_template, request, redirect, session, url_for, flash
-from flask_mail import Mail, Message
 from models.user_model import (
     verificar_usuario, crear_usuario, buscar_por_email,
     actualizar_password_by_email, listar_usuarios
 )
 from config import MAIL_SETTINGS
-import secrets, string
+import secrets
+import string
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 
 auth_bp = Blueprint("auth", __name__)
-mail = Mail()
+
 
 # Generar contraseñas temporales seguras
 def generar_password_temporal(length=12):
     caracteres = string.ascii_letters + string.digits + "!@#$%^&*"
     return ''.join(secrets.choice(caracteres) for _ in range(length))
+
+
+# Función para enviar emails con SendGrid
+def enviar_email_sendgrid(destinatario, asunto, cuerpo_texto, cuerpo_html=None):
+    """Envía emails usando SendGrid SMTP"""
+    try:
+        msg = MIMEMultipart('alternative')
+        msg['From'] = MAIL_SETTINGS['MAIL_DEFAULT_SENDER']
+        msg['To'] = destinatario
+        msg['Subject'] = asunto
+        
+        # Agregar versión texto plano
+        part1 = MIMEText(cuerpo_texto, 'plain')
+        msg.attach(part1)
+        
+        # Agregar versión HTML si existe
+        if cuerpo_html:
+            part2 = MIMEText(cuerpo_html, 'html')
+            msg.attach(part2)
+        
+        # Conectar y enviar
+        server = smtplib.SMTP(MAIL_SETTINGS['MAIL_SERVER'], MAIL_SETTINGS['MAIL_PORT'])
+        server.starttls()
+        server.login(MAIL_SETTINGS['MAIL_USERNAME'], MAIL_SETTINGS['MAIL_PASSWORD'])
+        server.send_message(msg)
+        server.quit()
+        
+        return True
+    except Exception as e:
+        print(f"❌ Error enviando email: {e}")
+        import traceback
+        traceback.print_exc()
+        return False
+
 
 # LOGIN
 @auth_bp.route("/", methods=["GET", "POST"])
@@ -30,7 +67,7 @@ def login():
 
             session["usuario"] = {
                 "id": str(usuario["_id"]),
-                "nombre": usuario["nombre"],   # 👈 unificado
+                "nombre": usuario["nombre"],
                 "rol": usuario.get("rol", ""),
                 "email": usuario["email"]
             }
@@ -42,11 +79,12 @@ def login():
             flash("Credenciales inválidas")
     return render_template("login.html")
 
+
 # REGISTRO
 @auth_bp.route("/register", methods=["GET", "POST"])
 def register():
     if request.method == "POST":
-        nombre = request.form["nombre_usuario"]  # 👈 viene del form
+        nombre = request.form["nombre_usuario"]
         email = request.form["email"]
         password = request.form["password"]
 
@@ -62,6 +100,7 @@ def register():
         return redirect(url_for("auth.login"))
     return render_template("register.html")
 
+
 # RECUPERACIÓN DE CONTRASEÑA
 @auth_bp.route("/reset", methods=["GET", "POST"])
 def reset_password():
@@ -73,12 +112,8 @@ def reset_password():
             res = actualizar_password_by_email(usuario["email"], nueva_pass)
             print("Resultado reset_password ->", res)
 
-            msg = Message(
-                subject="Recuperación de contraseña - Sistema Minimarket",
-                sender=MAIL_SETTINGS["MAIL_USERNAME"],
-                recipients=[usuario["email"]]
-            )
-            msg.body = f"""
+            # Cuerpo del email en texto plano
+            cuerpo_texto = f"""
 Estimado/a {usuario['nombre']},
 
 Hemos recibido una solicitud para restablecer su contraseña.
@@ -89,22 +124,60 @@ Se le ha asignado una contraseña temporal segura:
 Por favor, inicie sesión con esta contraseña temporal y posteriormente cámbiela desde la sección de configuración de su cuenta.
 
 Atentamente,  
-Equipo de soporte - Sistema Ecomarket
+Equipo de soporte - Sistema Minimarket CRM
 """
-            mail.send(msg)
 
-            flash("Se envió una contraseña temporal segura a su correo electrónico.")
+            # Cuerpo del email en HTML
+            cuerpo_html = f"""
+<html>
+  <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+    <div style="max-width: 600px; margin: 0 auto; padding: 20px; border: 2px solid #165d2a; border-radius: 10px;">
+      <h2 style="color: #165d2a; text-align: center;">🏪 Minimarket CRM</h2>
+      <h3 style="color: #165d2a;">Recuperación de Contraseña</h3>
+      
+      <p>Estimado/a <strong>{usuario['nombre']}</strong>,</p>
+      
+      <p>Hemos recibido una solicitud para restablecer su contraseña.</p>
+      
+      <div style="background: #f8cf0f; padding: 15px; border-radius: 5px; margin: 20px 0;">
+        <p style="margin: 0;"><strong>Contraseña temporal:</strong></p>
+        <p style="font-size: 18px; font-weight: bold; margin: 10px 0; color: #165d2a;">{nueva_pass}</p>
+      </div>
+      
+      <p>Por favor, inicie sesión con esta contraseña temporal y posteriormente cámbiela desde la sección de configuración de su cuenta.</p>
+      
+      <hr style="border: 1px solid #165d2a; margin: 20px 0;">
+      
+      <p style="font-size: 12px; color: #666;">
+        Atentamente,<br>
+        <strong>Equipo de soporte - Sistema Minimarket CRM</strong>
+      </p>
+    </div>
+  </body>
+</html>
+"""
+
+            # Enviar email con SendGrid
+            if enviar_email_sendgrid(
+                usuario["email"],
+                "Recuperación de contraseña - Sistema Minimarket",
+                cuerpo_texto,
+                cuerpo_html
+            ):
+                flash("Se envió una contraseña temporal segura a su correo electrónico.")
+            else:
+                flash("Error al enviar el correo. Intenta nuevamente más tarde.")
+            
             return redirect(url_for("auth.login"))
         else:
             flash("El correo ingresado no está registrado en el sistema.")
     return render_template("reset_password.html")
-# 📌 Solicitud de cambio de contraseña (solo vendedores)
+
+
+# 📌 Solicitud de cambio de contraseña (vendedores)
 @auth_bp.route("/solicitud-password", methods=["GET", "POST"])
 def solicitud_password():
-    if "usuario" not in session or session["usuario"]["rol"] != "vendedor":
-        flash("Solo los vendedores pueden acceder a esta opción.")
-        return redirect(url_for("auth.login"))
-
+    # Permitir acceso sin validar rol (cualquiera puede solicitar)
     if request.method == "POST":
         email = request.form.get("email", "").strip().lower()
         nueva_password = request.form.get("nueva_password", "").strip()
@@ -120,21 +193,25 @@ def solicitud_password():
             flash("No hay administradores registrados para procesar la solicitud.")
             return redirect(url_for("auth.solicitud_password"))
 
-        # Datos del vendedor que solicita
-        vendedor = session["usuario"]
+        # Obtener datos del solicitante
+        if "usuario" in session:
+            solicitante = session["usuario"]["nombre"]
+            email_solicitante = session["usuario"]["email"]
+        else:
+            solicitante = "Usuario no identificado"
+            email_solicitante = email
 
-        # Crear el mensaje
-        destinatarios = [a["email"] for a in admins if "email" in a]
-
-        msg = Message(
-            subject="Solicitud de Cambio de Contraseña - Minimarket CRM",
-            sender=MAIL_SETTINGS["MAIL_USERNAME"],
-            recipients=destinatarios
-        )
-        msg.body = f"""
+        # Enviar email a cada administrador
+        enviados = 0
+        for admin in admins:
+            if "email" not in admin:
+                continue
+            
+            # Cuerpo del email en texto plano
+            cuerpo_texto = f"""
 Estimados administradores,
 
-El usuario **{vendedor['nombre']}** con correo **{vendedor['email']}**
+El usuario {solicitante} con correo {email_solicitante}
 ha solicitado un cambio de contraseña para la cuenta:
 
 📧 Correo a modificar: {email}
@@ -143,14 +220,57 @@ ha solicitado un cambio de contraseña para la cuenta:
 Por favor, validen la solicitud y realicen el cambio en el panel de administración.
 
 Atentamente,  
-Equipo de soporte - Sistema Ecomarket
+Equipo de soporte - Sistema Minimarket CRM
 """
-        mail.send(msg)
 
-        flash("Solicitud enviada correctamente a los administradores.")
-        return redirect(url_for("auth.dashboard_vendedor"))
+            # Cuerpo del email en HTML
+            cuerpo_html = f"""
+<html>
+  <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+    <div style="max-width: 600px; margin: 0 auto; padding: 20px; border: 2px solid #165d2a; border-radius: 10px;">
+      <h2 style="color: #165d2a; text-align: center;">🏪 Minimarket CRM</h2>
+      <h3 style="color: #165d2a;">Solicitud de Cambio de Contraseña</h3>
+      
+      <p>Estimados administradores,</p>
+      
+      <p>El usuario <strong>{solicitante}</strong> con correo <strong>{email_solicitante}</strong> ha solicitado un cambio de contraseña.</p>
+      
+      <div style="background: #ebf3f3; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #165d2a;">
+        <p style="margin: 5px 0;"><strong>📧 Correo a modificar:</strong> {email}</p>
+        <p style="margin: 5px 0;"><strong>🔑 Nueva contraseña deseada:</strong></p>
+        <p style="font-size: 16px; font-weight: bold; margin: 10px 0; color: #165d2a;">{nueva_password}</p>
+      </div>
+      
+      <p>Por favor, validen la solicitud y realicen el cambio en el panel de administración.</p>
+      
+      <hr style="border: 1px solid #165d2a; margin: 20px 0;">
+      
+      <p style="font-size: 12px; color: #666;">
+        Atentamente,<br>
+        <strong>Equipo de soporte - Sistema Minimarket CRM</strong>
+      </p>
+    </div>
+  </body>
+</html>
+"""
+
+            if enviar_email_sendgrid(
+                admin["email"],
+                "Solicitud de Cambio de Contraseña - Minimarket CRM",
+                cuerpo_texto,
+                cuerpo_html
+            ):
+                enviados += 1
+
+        if enviados > 0:
+            flash(f"✅ Solicitud enviada correctamente a {enviados} administrador(es).")
+        else:
+            flash("❌ Error al enviar la solicitud. Intenta nuevamente.")
+        
+        return redirect(url_for("auth.solicitud_password"))
 
     return render_template("solicitud_password.html")
+
 
 # DASHBOARD ADMIN
 @auth_bp.route("/dashboard/admin")
@@ -159,12 +279,14 @@ def dashboard_admin():
         return render_template("dashboard_admin.html", usuario=session["usuario"])
     return redirect(url_for("auth.login"))
 
+
 # DASHBOARD VENDEDOR
 @auth_bp.route("/dashboard/vendedor")
 def dashboard_vendedor():
     if "usuario" in session and session["usuario"]["rol"] == "vendedor":
         return render_template("dashboard_vendedor.html", usuario=session["usuario"])
     return redirect(url_for("auth.login"))
+
 
 # LOGOUT
 @auth_bp.route("/logout")
