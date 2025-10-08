@@ -1,27 +1,35 @@
 {% extends "base.html" %}
+
 {% block title %}Panel de Vendedor - EcoMarket{% endblock %}
+
 {% block content %}
 <div class="fade-in">
     <h1 class="dashboard-title">Panel de Vendedor</h1>
     <p class="welcome-text">Bienvenido {{ usuario.nombre }}, accede a los módulos de ventas</p>
-
+    
     <div class="modules-grid">
         <a href="{{ url_for('cliente.clientes') }}" class="module-card">
             <div class="module-icon">👥</div>
             <h3 class="module-title">Gestión de Clientes</h3>
             <p class="module-desc">Administra la información de todos los clientes</p>
         </a>
-
+        
         <a href="{{ url_for('ventas.ventas') }}" class="module-card">
             <div class="module-icon">🛒</div>
             <h3 class="module-title">Registro de Ventas</h3>
             <p class="module-desc">Procesa ventas y genera facturas</p>
         </a>
-
+        
         <a href="{{ url_for('productos.productos') }}" class="module-card">
             <div class="module-icon">📦</div>
             <h3 class="module-title">Gestión de Productos</h3>
             <p class="module-desc">Consulta el inventario y productos</p>
+        </a>
+        
+        <a href="{{ url_for('auth.solicitud_password') }}" class="module-card">
+            <div class="module-icon">🔐</div>
+            <h3 class="module-title">Cambiar Contraseña</h3>
+            <p class="module-desc">Solicita cambio de contraseña al administrador</p>
         </a>
     </div>
 </div>

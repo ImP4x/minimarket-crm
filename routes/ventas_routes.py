@@ -1,7 +1,7 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, session, send_file
 from models.ventas_model import (
-    listar_productos, registrar_venta, obtener_factura, listar_facturas,
-    obtener_ventas_por_periodo, obtener_ventas_detalladas_por_periodo
+    listar_productos, obtener_factura, listar_facturas,
+    obtener_ventas_por_periodo, obtener_ventas_detalladas_por_periodo, obtener_stock
 )
 from models.cliente_model import listar_clientes, obtener_cliente_por_id
 from io import BytesIO
@@ -16,91 +16,228 @@ from datetime import datetime, timedelta
 import gridfs
 from config import db
 
+
 ventas_bp = Blueprint("ventas", __name__)
+
 
 # Inicializar GridFS
 fs = gridfs.GridFS(db)
 
+# Referencias a colecciones (nombres diferentes para evitar conflictos)
+ventas_collection = db["ventas"]
+facturas_collection = db["historial_facturas"]
+productos_collection = db["productos"]
+stock_collection = db["stock"]
+
+
 # -------------------------
-# Helper: Generar PDF Mejorado
+# Helper: Generar PDF Mejorado con MÚLTIPLES productos
 # -------------------------
 def generar_pdf_factura_mejorada(factura):
-    """Genera un PDF mejorado en memoria con los datos de la factura."""
+    """Genera un PDF profesional y moderno con los colores del proyecto"""
+    from reportlab.lib import colors as rl_colors
+    from reportlab.lib.colors import HexColor
+    
     buffer = BytesIO()
-    doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=40, leftMargin=40, topMargin=60, bottomMargin=18)
+    doc = SimpleDocTemplate(
+        buffer, 
+        pagesize=letter,
+        rightMargin=50,
+        leftMargin=50,
+        topMargin=40,
+        bottomMargin=40
+    )
     elements = []
-    
     styles = getSampleStyleSheet()
-    title_style = styles['Heading1']
-    normal_style = styles['Normal']
     
-    # Título principal
-    title = Paragraph("🏪 FACTURA - MINIMARKET CRM", title_style)
-    elements.append(title)
+    # Colores del proyecto
+    color_primary = HexColor('#165d2a')  # Verde
+    color_secondary = HexColor('#f8cf0f')  # Amarillo
+    color_light = HexColor('#ebf3f3')  # Fondo claro
+    color_dark = HexColor('#2c2c2c')  # Texto oscuro
+    
+    # ===== ENCABEZADO CON LOGO Y TÍTULO =====
+    header_data = [
+        [
+            Paragraph("<b style='font-size:24; color:#165d2a;'>🏪 MINIMARKET CRM</b>", styles['Normal']),
+            Paragraph("<b style='font-size:16; color:#165d2a; text-align:right;'>FACTURA DE VENTA</b>", styles['Normal'])
+        ]
+    ]
+    header_table = Table(header_data, colWidths=[3.5*inch, 3.5*inch])
+    header_table.setStyle(TableStyle([
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 15),
+    ]))
+    elements.append(header_table)
+    
+    # Línea separadora decorativa
+    line_table = Table([['']], colWidths=[7*inch])
+    line_table.setStyle(TableStyle([
+        ('LINEABOVE', (0, 0), (-1, 0), 3, color_secondary),
+        ('LINEBELOW', (0, 0), (-1, 0), 1, color_primary),
+    ]))
+    elements.append(line_table)
     elements.append(Spacer(1, 20))
     
-    # Información general de la factura
+    # ===== INFORMACIÓN DE FACTURA Y CLIENTE EN DOS COLUMNAS =====
+    # Convertir ObjectId a string y luego hacer el slice
+    factura_id_str = str(factura.get('_id', ''))[:12]
+    
+    info_izquierda = f"""
+    <b><font color='#165d2a' size='12'>INFORMACIÓN DE FACTURA</font></b><br/>
+    <b>ID:</b> {factura_id_str}...<br/>
+    <b>Fecha:</b> {factura['fecha'].strftime('%d/%m/%Y')}<br/>
+    <b>Hora:</b> {factura['fecha'].strftime('%H:%M:%S')}<br/>
+    <b>Atendido por:</b> {factura.get('vendedor', 'No disponible')}
+    """
+    
+    info_derecha = f"""
+    <b><font color='#165d2a' size='12'>DATOS DEL CLIENTE</font></b><br/>
+    <b>Nombre:</b> {factura.get('cliente', 'No disponible')}<br/>
+    <b>Email:</b> {factura.get('cliente_email', 'No especificado')}<br/>
+    <br/>
+    """
+    
     info_data = [
-        ["📄 ID Factura:", str(factura.get('_id', ''))],
-        ["📅 Fecha:", factura['fecha'].strftime('%d/%m/%Y %H:%M:%S')],
-        ["👤 Cliente:", factura.get('cliente', 'No disponible')],
-        ["📧 Email Cliente:", factura.get('cliente_email', 'No disponible')],
-        ["🧑‍💼 Atendido Por:", factura.get('vendedor', 'No disponible')]
+        [
+            Paragraph(info_izquierda, styles['Normal']),
+            Paragraph(info_derecha, styles['Normal'])
+        ]
     ]
-
-    info_table = Table(info_data, colWidths=[2*inch, 4*inch])
+    info_table = Table(info_data, colWidths=[3.5*inch, 3.5*inch])
     info_table.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (0, -1), colors.lightgrey),
-        ('TEXTCOLOR', (0, 0), (-1, -1), colors.black),
-        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-        ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
-        ('FONTSIZE', (0, 0), (-1, -1), 11),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
-        ('TOPPADDING', (0, 0), (-1, -1), 8),
-        ('BOX', (0, 0), (-1, -1), 1, colors.black),
-        ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+        ('BACKGROUND', (0, 0), (0, 0), color_light),
+        ('BACKGROUND', (1, 0), (1, 0), color_light),
+        ('BOX', (0, 0), (0, 0), 2, color_primary),
+        ('BOX', (1, 0), (1, 0), 2, color_primary),
+        ('TOPPADDING', (0, 0), (-1, -1), 15),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 15),
+        ('LEFTPADDING', (0, 0), (-1, -1), 15),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 15),
+        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
     ]))
     elements.append(info_table)
-    elements.append(Spacer(1, 30))
+    elements.append(Spacer(1, 25))
     
-    # Título para detalle de productos
-    subtitle = Paragraph("📦 DETALLE DE LA VENTA", styles['Heading2'])
+    # ===== TÍTULO DE DETALLE =====
+    subtitle = Paragraph(
+        "<b style='font-size:14; color:#165d2a;'>📦 DETALLE DE LA COMPRA</b>",
+        styles['Normal']
+    )
     elements.append(subtitle)
-    elements.append(Spacer(1, 15))
-
-    # Tabla de productos vendidos
-    product_data = [["Producto", "Cantidad", "Total"]]
-    product_data.append([
-        factura.get('producto', 'No disponible'),
-        str(factura.get('cantidad', '')),
-        f"${factura.get('total', ''):,.2f}"
-    ])
-
-    prod_table = Table(product_data, colWidths=[4*inch, 1*inch, 2*inch])
+    elements.append(Spacer(1, 10))
+    
+    # ===== TABLA DE PRODUCTOS =====
+    product_data = [
+        [
+            Paragraph("<b>PRODUCTO</b>", styles['Normal']),
+            Paragraph("<b>CANT.</b>", styles['Normal']),
+            Paragraph("<b>PRECIO UNIT.</b>", styles['Normal']),
+            Paragraph("<b>SUBTOTAL</b>", styles['Normal'])
+        ]
+    ]
+    
+    # Agregar productos
+    if factura.get('productos'):
+        for item in factura['productos']:
+            product_data.append([
+                Paragraph(f"<b>{item.get('nombre', 'No disponible')}</b>", styles['Normal']),
+                Paragraph(f"<para align='center'>{item.get('cantidad', '')}</para>", styles['Normal']),
+                Paragraph(f"<para align='right'>${item.get('precio', 0):,.2f}</para>", styles['Normal']),
+                Paragraph(f"<para align='right'><b>${item.get('subtotal', 0):,.2f}</b></para>", styles['Normal'])
+            ])
+    else:
+        # Compatibilidad con facturas antiguas
+        precio_unit = factura.get('total', 0) / factura.get('cantidad', 1)
+        product_data.append([
+            Paragraph(f"<b>{factura.get('producto', 'No disponible')}</b>", styles['Normal']),
+            Paragraph(f"<para align='center'>{factura.get('cantidad', '')}</para>", styles['Normal']),
+            Paragraph(f"<para align='right'>${precio_unit:,.2f}</para>", styles['Normal']),
+            Paragraph(f"<para align='right'><b>${factura.get('total', 0):,.2f}</b></para>", styles['Normal'])
+        ])
+    
+    prod_table = Table(product_data, colWidths=[3*inch, 1*inch, 1.5*inch, 1.5*inch])
     prod_table.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, 0), colors.dodgerblue),
-        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
-        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        # Encabezado
+        ('BACKGROUND', (0, 0), (-1, 0), color_primary),
+        ('TEXTCOLOR', (0, 0), (-1, 0), rl_colors.white),
         ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-        ('FONTSIZE', (0, 0), (-1, 0), 12),
-        ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+        ('FONTSIZE', (0, 0), (-1, 0), 11),
+        ('ALIGN', (1, 0), (1, 0), 'CENTER'),
+        ('ALIGN', (2, 0), (-1, 0), 'RIGHT'),
         ('TOPPADDING', (0, 0), (-1, 0), 12),
-        ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
-        ('BOX', (0, 0), (-1, -1), 2, colors.black),
-        ('GRID', (0, 0), (-1, -1), 1, colors.black),
-        ('FONTSIZE', (0, 1), (-1, -1), 11),
+        ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+        
+        # Cuerpo
+        ('BACKGROUND', (0, 1), (-1, -1), color_light),
+        ('TEXTCOLOR', (0, 1), (-1, -1), color_dark),
+        ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
+        ('FONTSIZE', (0, 1), (-1, -1), 10),
+        ('TOPPADDING', (0, 1), (-1, -1), 10),
+        ('BOTTOMPADDING', (0, 1), (-1, -1), 10),
+        ('LEFTPADDING', (0, 0), (-1, -1), 10),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 10),
+        
+        # Bordes
+        ('BOX', (0, 0), (-1, -1), 2, color_primary),
+        ('LINEBELOW', (0, 0), (-1, 0), 2, color_secondary),
+        ('GRID', (0, 1), (-1, -1), 0.5, rl_colors.grey),
+        
+        # Alineación
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
     ]))
     elements.append(prod_table)
-    elements.append(Spacer(1, 40))
-
-    # Footer de agradecimiento
-    footer = Paragraph("✨ ¡Gracias por su compra en MINIMARKET CRM! ✨", styles['Heading3'])
-    elements.append(footer)
-
+    elements.append(Spacer(1, 15))
+    
+    # ===== TOTAL DESTACADO =====
+    total_data = [
+        [
+            Paragraph("<b style='font-size:14;'>TOTAL A PAGAR:</b>", styles['Normal']),
+            Paragraph(f"<b style='font-size:16; color:#165d2a;'>${factura.get('total', 0):,.2f}</b>", styles['Normal'])
+        ]
+    ]
+    total_table = Table(total_data, colWidths=[5*inch, 2*inch])
+    total_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, -1), color_secondary),
+        ('BOX', (0, 0), (-1, -1), 2, color_primary),
+        ('ALIGN', (0, 0), (0, 0), 'RIGHT'),
+        ('ALIGN', (1, 0), (1, 0), 'RIGHT'),
+        ('TOPPADDING', (0, 0), (-1, -1), 12),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 12),
+        ('LEFTPADDING', (0, 0), (-1, -1), 15),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 15),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+    ]))
+    elements.append(total_table)
+    elements.append(Spacer(1, 30))
+    
+    # ===== FOOTER =====
+    footer_text = """
+    <para align='center'>
+    <b style='font-size:12; color:#165d2a;'>✨ ¡Gracias por su compra! ✨</b><br/>
+    <font size='9' color='#666666'>
+    Este documento es un comprobante de pago válido.<br/>
+    Para cualquier consulta, contáctenos.<br/>
+    <b>MINIMARKET CRM</b> - Sistema de Gestión Empresarial
+    </font>
+    </para>
+    """
+    footer = Paragraph(footer_text, styles['Normal'])
+    footer_table = Table([[footer]], colWidths=[7*inch])
+    footer_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, -1), color_light),
+        ('BOX', (0, 0), (-1, -1), 1, color_primary),
+        ('TOPPADDING', (0, 0), (-1, -1), 15),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 15),
+    ]))
+    elements.append(footer_table)
+    
     # Construir PDF
     doc.build(elements)
     buffer.seek(0)
     return buffer.getvalue()
+
+
 
 # Mantener función original para compatibilidad
 def generar_pdf_factura(factura):
@@ -148,44 +285,132 @@ def generar_pdf_factura(factura):
     buffer.seek(0)
     return buffer.getvalue()
 
-# 📌 Registro de ventas
+
+# 📌 Registro de ventas (con carrito múltiple - UNA SOLA FACTURA)
 @ventas_bp.route("/ventas", methods=["GET", "POST"])
 def ventas():
     if "usuario" not in session:
         return redirect(url_for("auth.login"))
-
+    
     if request.method == "POST":
-        cliente_id = request.form["cliente"]
-        producto_id = request.form["producto"]
-        cantidad = int(request.form["cantidad"])
-
-        cliente = obtener_cliente_por_id(cliente_id)
-        vendedor = session["usuario"]["nombre"]
-
-        venta_id, error = registrar_venta(cliente, producto_id, cantidad, vendedor=vendedor)
-        if error:
-            flash(error)
+        try:
+            cliente_id = request.form["cliente"]
+            carrito_json = request.form.get("carrito")
+            
+            if not carrito_json:
+                flash("El carrito está vacío")
+                return redirect(url_for("ventas.ventas"))
+            
+            import json
+            carrito = json.loads(carrito_json)
+            
+            if not carrito or len(carrito) == 0:
+                flash("El carrito está vacío")
+                return redirect(url_for("ventas.ventas"))
+            
+            cliente = obtener_cliente_por_id(cliente_id)
+            if not cliente:
+                flash("Cliente no encontrado")
+                return redirect(url_for("ventas.ventas"))
+            
+            vendedor = session["usuario"]["nombre"]
+            
+            # Procesar todos los productos y actualizar stock
+            productos_factura = []
+            total_factura = 0
+            
+            for item in carrito:
+                producto_id = item["id"]
+                cantidad = int(item["cantidad"])
+                
+                # Validar producto y stock
+                try:
+                    prod = productos_collection.find_one({"_id": ObjectId(str(producto_id))})
+                except Exception:
+                    prod = None
+                
+                if not prod:
+                    flash(f"Producto {item['nombre']} no encontrado")
+                    continue
+                
+                stk = obtener_stock(producto_id)
+                
+                if not stk or stk.get("cantidad", 0) < cantidad:
+                    flash(f"Stock insuficiente para {item['nombre']}")
+                    continue
+                
+                precio = float(prod.get("precio", 0))
+                subtotal = precio * cantidad
+                total_factura += subtotal
+                
+                # Actualizar stock
+                stock_collection.update_one(
+                    {"producto_id": ObjectId(str(producto_id))},
+                    {"$inc": {"cantidad": -int(cantidad)}}
+                )
+                
+                # Agregar producto a la lista de la factura
+                productos_factura.append({
+                    "id": str(producto_id),
+                    "nombre": prod.get("nombre", ""),
+                    "precio": precio,
+                    "cantidad": cantidad,
+                    "subtotal": subtotal
+                })
+            
+            if len(productos_factura) == 0:
+                flash("No se pudo procesar ningún producto")
+                return redirect(url_for("ventas.ventas"))
+            
+            # Crear UNA SOLA venta con todos los productos
+            venta_doc = {
+                "cliente_id": ObjectId(str(cliente["_id"])),
+                "productos": productos_factura,
+                "total": total_factura,
+                "fecha": datetime.utcnow(),
+                "vendedor": str(vendedor)
+            }
+            venta_res = ventas_collection.insert_one(venta_doc)
+            venta_id = venta_res.inserted_id
+            
+            # Crear UNA SOLA factura con todos los productos
+            factura_doc = {
+                "venta_id": venta_id,
+                "cliente": cliente.get("nombre", ""),
+                "cliente_email": cliente.get("email", ""),
+                "productos": productos_factura,
+                "total": total_factura,
+                "fecha": datetime.utcnow(),
+                "vendedor": str(vendedor)
+            }
+            facturas_collection.insert_one(factura_doc)
+            
+            # Generar PDF con todos los productos
+            factura = obtener_factura(str(venta_id))
+            if factura:
+                pdf_bytes = generar_pdf_factura_mejorada(factura)
+                pdf_id = fs.put(pdf_bytes, filename=f"factura_{venta_id}.pdf")
+                
+                facturas_collection.update_one(
+                    {"venta_id": ObjectId(str(venta_id))},
+                    {"$set": {"pdf_id": pdf_id}}
+                )
+            
+            flash(f"✅ Venta procesada exitosamente: {len(productos_factura)} producto(s) vendido(s)")
+            return redirect(url_for("ventas.ver_factura", venta_id=venta_id))
+                
+        except Exception as e:
+            print(f"❌ Error procesando venta: {e}")
+            import traceback
+            traceback.print_exc()
+            flash("Ocurrió un error al procesar la venta")
             return redirect(url_for("ventas.ventas"))
-
-        # Generar y guardar PDF mejorado en GridFS
-        factura = obtener_factura(venta_id)
-        if factura:
-            # Usar la nueva función mejorada
-            pdf_bytes = generar_pdf_factura_mejorada(factura)
-            pdf_id = fs.put(pdf_bytes, filename=f"factura_{venta_id}.pdf")
-            # actualizar factura con referencia al PDF
-            from config import db
-            db["historial_facturas"].update_one(
-                {"venta_id": ObjectId(str(venta_id))},
-                {"$set": {"pdf_id": pdf_id}}
-            )
-
-        flash("Venta registrada exitosamente.")
-        return redirect(url_for("ventas.ver_factura", venta_id=venta_id))
-
-    productos = listar_productos()
+    
+    # GET: mostrar formulario
+    productos_list = listar_productos()
     clientes = listar_clientes()
-    return render_template("ventas.html", productos=productos, clientes=clientes)
+    return render_template("ventas.html", productos=productos_list, clientes=clientes)
+
 
 # 📌 Ver factura en HTML
 @ventas_bp.route("/ventas/factura/<venta_id>")
@@ -199,6 +424,7 @@ def ver_factura(venta_id):
         return redirect(url_for("ventas.ventas"))
 
     return render_template("factura.html", factura=factura)
+
 
 # 📌 Descargar factura en PDF (desde BD - GridFS)
 @ventas_bp.route("/ventas/factura/<venta_id>/pdf")
@@ -219,14 +445,16 @@ def descargar_factura_pdf(venta_id):
         mimetype="application/pdf"
     )
 
+
 # 📌 Listar todas las facturas
 @ventas_bp.route("/ventas/facturas")
 def listar_facturas_view():
     if "usuario" not in session:
         return redirect(url_for("auth.login"))
 
-    facturas = listar_facturas()
-    return render_template("facturas.html", facturas=facturas)
+    facturas_list = listar_facturas()
+    return render_template("facturas.html", facturas=facturas_list)
+
 
 # 📌 Mostrar stock actual
 @ventas_bp.route("/ventas/stock")
@@ -234,8 +462,9 @@ def ver_stock():
     if "usuario" not in session:
         return redirect(url_for("auth.login"))
 
-    productos = listar_productos()
-    return render_template("stock.html", productos=productos)
+    productos_list = listar_productos()
+    return render_template("stock.html", productos=productos_list)
+
 
 # 📊 NUEVO: Reporte de ventas con filtros de periodo
 @ventas_bp.route("/reporte_ventas")
