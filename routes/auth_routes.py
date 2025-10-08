@@ -6,9 +6,8 @@ from models.user_model import (
 from config import MAIL_SETTINGS
 import secrets
 import string
-import smtplib
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
+from sendgrid import SendGridAPIClient
+from sendgrid.helpers.mail import Mail
 
 auth_bp = Blueprint("auth", __name__)
 
@@ -19,32 +18,23 @@ def generar_password_temporal(length=12):
     return ''.join(secrets.choice(caracteres) for _ in range(length))
 
 
-# Función para enviar emails con SendGrid
+# Función para enviar emails con SendGrid Web API
 def enviar_email_sendgrid(destinatario, asunto, cuerpo_texto, cuerpo_html=None):
-    """Envía emails usando SendGrid SMTP"""
+    """Envía emails usando SendGrid Web API (no SMTP)"""
     try:
-        msg = MIMEMultipart('alternative')
-        msg['From'] = MAIL_SETTINGS['MAIL_DEFAULT_SENDER']
-        msg['To'] = destinatario
-        msg['Subject'] = asunto
+        message = Mail(
+            from_email=MAIL_SETTINGS['MAIL_DEFAULT_SENDER'],
+            to_emails=destinatario,
+            subject=asunto,
+            html_content=cuerpo_html if cuerpo_html else cuerpo_texto
+        )
         
-        # Agregar versión texto plano
-        part1 = MIMEText(cuerpo_texto, 'plain')
-        msg.attach(part1)
+        sg = SendGridAPIClient(MAIL_SETTINGS['MAIL_PASSWORD'])
+        response = sg.send(message)
         
-        # Agregar versión HTML si existe
-        if cuerpo_html:
-            part2 = MIMEText(cuerpo_html, 'html')
-            msg.attach(part2)
-        
-        # Conectar y enviar
-        server = smtplib.SMTP(MAIL_SETTINGS['MAIL_SERVER'], MAIL_SETTINGS['MAIL_PORT'])
-        server.starttls()
-        server.login(MAIL_SETTINGS['MAIL_USERNAME'], MAIL_SETTINGS['MAIL_PASSWORD'])
-        server.send_message(msg)
-        server.quit()
-        
+        print(f"✅ Email enviado exitosamente a {destinatario} - Status: {response.status_code}")
         return True
+        
     except Exception as e:
         print(f"❌ Error enviando email: {e}")
         import traceback
@@ -157,16 +147,16 @@ Equipo de soporte - Sistema Minimarket CRM
 </html>
 """
 
-            # Enviar email con SendGrid
+            # Enviar email con SendGrid API
             if enviar_email_sendgrid(
                 usuario["email"],
                 "Recuperación de contraseña - Sistema Minimarket",
                 cuerpo_texto,
                 cuerpo_html
             ):
-                flash("Se envió una contraseña temporal segura a su correo electrónico.")
+                flash("✅ Se envió una contraseña temporal segura a su correo electrónico.")
             else:
-                flash("Error al enviar el correo. Intenta nuevamente más tarde.")
+                flash("⚠️ Se generó la contraseña pero hubo un problema al enviar el email.")
             
             return redirect(url_for("auth.login"))
         else:
@@ -174,10 +164,9 @@ Equipo de soporte - Sistema Minimarket CRM
     return render_template("reset_password.html")
 
 
-# 📌 Solicitud de cambio de contraseña (vendedores)
+# 📌 Solicitud de cambio de contraseña
 @auth_bp.route("/solicitud-password", methods=["GET", "POST"])
 def solicitud_password():
-    # Permitir acceso sin validar rol (cualquiera puede solicitar)
     if request.method == "POST":
         email = request.form.get("email", "").strip().lower()
         nueva_password = request.form.get("nueva_password", "").strip()
