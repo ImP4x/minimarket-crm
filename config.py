@@ -13,6 +13,6 @@ MAIL_SETTINGS = {
     'MAIL_USE_TLS': True,
     'MAIL_USE_SSL': False,
     'MAIL_USERNAME': 'apikey',  # Siempre es 'apikey'
-    'MAIL_PASSWORD': os.getenv('SENDGRID_API_KEY', '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'),
+    'MAIL_PASSWORD': os.getenv('SENDGRID_API_KEY', ''),
     'MAIL_DEFAULT_SENDER': 'william876540@gmail.com'
 }
