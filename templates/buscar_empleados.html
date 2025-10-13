@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+{% block title %}Buscar Empleados - EcoMarket{% endblock %}
+{% block content %}
+<div class="fade-in">
+    <h1 class="section-title">🔍 Búsqueda de Empleados</h1>
+
+    <!-- Barra de búsqueda -->
+    <div class="form-card">
+        <form method="GET" action="{{ url_for('empleado.buscar_empleados') }}">
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Buscar por nombre, apellido o documento</label>
+                    <input type="text" name="q" placeholder="Escribe para buscar..." value="{{ q or '' }}" class="form-control">
+                </div>
+            </div>
+            <div style="display: flex; gap: 1rem;">
+                <button class="btn btn-primary" type="submit">🔍 Buscar</button>
+                <a href="{{ url_for('empleado.buscar_empleados') }}" class="btn btn-secondary">🔄 Limpiar</a>
+            </div>
+        </form>
+    </div>
+
+    <!-- Botones de exportación -->
+    {% if empleados %}
+    <div style="text-align: right; margin-bottom: 1rem;">
+        <a href="{{ url_for('empleado.exportar_empleados_pdf') }}?q={{ q or '' }}" class="btn btn-danger">
+            📄 Exportar a PDF
+        </a>
+        <a href="{{ url_for('empleado.exportar_empleados_excel') }}?q={{ q or '' }}" class="btn btn-success">
+            📊 Exportar a Excel
+        </a>
+    </div>
+    {% endif %}
+
+    <!-- Resultados -->
+    <h2 class="section-title">Resultados de Búsqueda ({{ empleados|length }} empleado(s))</h2>
+    <div class="table-container">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Documento</th>
+                    <th>Nombre Completo</th>
+                    <th>Edad</th>
+                    <th>Género</th>
+                    <th>Cargo</th>
+                    <th>Correo</th>
+                    <th>Contacto</th>
+                    <th>Estado</th>
+                    <th>Fecha Registro</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for e in empleados %}
+                <tr>
+                    <td><strong>{{ e.id_empleado }}</strong></td>
+                    <td>{{ e.nro_documento }}</td>
+                    <td><strong>{{ e.nombre }} {{ e.apellido }}</strong></td>
+                    <td>{{ e.edad }}</td>
+                    <td>{{ e.genero }}</td>
+                    <td>{{ e.cargo }}</td>
+                    <td>{{ e.correo }}</td>
+                    <td>{{ e.nro_contacto }}</td>
+                    <td>
+                        {% if e.estado == 'activo' %}
+                            <span style="color: green; font-weight: bold;">✅ Activo</span>
+                        {% else %}
+                            <span style="color: red; font-weight: bold;">❌ Inactivo</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ e.fecha_registro[:10] if e.fecha_registro else '-' }}</td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="10" style="text-align: center; color: #666;">
+                        {% if q %}
+                            No se encontraron empleados con el término "{{ q }}"
+                        {% else %}
+                            Realiza una búsqueda para ver resultados
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <div style="text-align: center; margin-top: 2rem;">
+        <a href="{{ url_for('empleado.empleados') }}" class="btn btn-secondary">← Volver a Empleados</a>
+        <a href="{{ url_for('auth.dashboard_admin') if session['usuario']['rol'] == 'administrador' else url_for('auth.dashboard_vendedor') }}" 
+           class="btn btn-secondary">🏠 Volver al Panel</a>
+    </div>
+</div>
+{% endblock %}

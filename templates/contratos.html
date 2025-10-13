@@ -1,0 +1,133 @@
+{% extends "base.html" %}
+{% block title %}Gestión de Contratos - EcoMarket{% endblock %}
+{% block content %}
+<div class="fade-in">
+    <h1 class="section-title">Gestión de Contratos</h1>
+
+    <!-- 🔎 Buscar -->
+    <div class="search-bar">
+        <form method="GET" action="{{ url_for('contrato.contratos') }}" style="display: flex; gap: 1rem; align-items: center; width: 100%;">
+            <input type="text" name="q" placeholder="Buscar por nombre de empleado o tipo de contrato" value="{{ q or '' }}" class="search-input">
+            <button class="btn btn-secondary" type="submit">🔍 Buscar</button>
+        </form>
+    </div>
+
+    <!-- ➕ Crear -->
+    <div class="form-card">
+        <h2 class="section-title">Crear Nuevo Contrato</h2>
+        <form method="POST" action="{{ url_for('contrato.contratos') }}">
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Empleado *</label>
+                    <select name="empleado_id" class="form-control" required>
+                        <option value="">Seleccionar empleado...</option>
+                        {% for emp in empleados %}
+                            <option value="{{ emp._key }}">{{ emp.nombre }} {{ emp.apellido }} - {{ emp.nro_documento }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Tipo de Contrato *</label>
+                    <select name="tipo_contrato" class="form-control" required>
+                        <option value="">Seleccionar...</option>
+                        <option value="Indefinido">Indefinido</option>
+                        <option value="Fijo">Fijo</option>
+                        <option value="Obra o Labor">Obra o Labor</option>
+                        <option value="Prestación de Servicios">Prestación de Servicios</option>
+                        <option value="Aprendizaje">Aprendizaje</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Cargo *</label>
+                    <input type="text" name="cargo" class="form-control" required>
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Fecha Inicio *</label>
+                    <input type="date" name="fecha_inicio" class="form-control" required>
+                </div>
+                <div class="form-group">
+                    <label>Fecha Fin</label>
+                    <input type="date" name="fecha_fin" class="form-control">
+                </div>
+                <div class="form-group">
+                    <label>Salario *</label>
+                    <input type="number" name="salario" class="form-control" min="0" step="0.01" required>
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Observaciones</label>
+                    <textarea name="observaciones" class="form-control" rows="2"></textarea>
+                </div>
+            </div>
+            <button class="btn btn-success" type="submit">✅ Crear Contrato</button>
+        </form>
+    </div>
+
+    <!-- 📋 Listado CON SCROLL HORIZONTAL -->
+    <h2 class="section-title">Lista de Contratos</h2>
+    <div class="table-container">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Empleado</th>
+                    <th>Documento</th>
+                    <th>Tipo Contrato</th>
+                    <th>Cargo</th>
+                    <th>Fecha Inicio</th>
+                    <th>Fecha Fin</th>
+                    <th>Salario</th>
+                    <th>Observaciones</th>
+                    <th>Fecha Registro</th>
+                    <th>Acciones</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for c in contratos %}
+                <tr>
+                    <form method="POST" action="{{ url_for('contrato.editar_contrato', contrato_id=c._key) }}">
+                        <td><strong>{{ c.id_contrato }}</strong></td>
+                        <td>{{ c.empleado_nombre }}</td>
+                        <td>{{ c.empleado_documento }}</td>
+                        <td>
+                            <select name="tipo_contrato">
+                                <option value="Indefinido" {% if c.tipo_contrato == "Indefinido" %}selected{% endif %}>Indefinido</option>
+                                <option value="Fijo" {% if c.tipo_contrato == "Fijo" %}selected{% endif %}>Fijo</option>
+                                <option value="Obra o Labor" {% if c.tipo_contrato == "Obra o Labor" %}selected{% endif %}>Obra o Labor</option>
+                                <option value="Prestación de Servicios" {% if c.tipo_contrato == "Prestación de Servicios" %}selected{% endif %}>Prestación de Servicios</option>
+                                <option value="Aprendizaje" {% if c.tipo_contrato == "Aprendizaje" %}selected{% endif %}>Aprendizaje</option>
+                            </select>
+                        </td>
+                        <td><input type="text" name="cargo" value="{{ c.cargo }}"></td>
+                        <td><input type="date" name="fecha_inicio" value="{{ c.fecha_inicio }}"></td>
+                        <td><input type="date" name="fecha_fin" value="{{ c.fecha_fin or '' }}"></td>
+                        <td><input type="number" name="salario" value="{{ c.salario }}" step="0.01"></td>
+                        <td><textarea name="observaciones">{{ c.observaciones }}</textarea></td>
+                        <td>{{ c.fecha_registro[:10] if c.fecha_registro else '-' }}</td>
+                        <td>
+                            <button class="btn btn-success" type="submit">💾</button>
+                        </td>
+                    </form>
+                    <td>
+                        <form method="POST" action="{{ url_for('contrato.eliminar_contrato_route', contrato_id=c._key) }}" 
+                              onsubmit="return confirm('¿Seguro que deseas eliminar este contrato?');">
+                            <button class="btn btn-danger" type="submit">🗑️</button>
+                        </form>
+                    </td>
+                </tr>
+                {% else %}
+                <tr><td colspan="12" style="text-align: center; color: #666;">No hay contratos registrados</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <div style="text-align: center; margin-top: 2rem;">
+        <a href="{{ url_for('auth.dashboard_admin') if session['usuario']['rol'] == 'administrador' else url_for('auth.dashboard_vendedor') }}" 
+           class="btn btn-secondary">← Volver al Panel</a>
+    </div>
+</div>
+{% endblock %}

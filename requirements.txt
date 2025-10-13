@@ -1,6 +1,7 @@
 Flask==2.3.2
 werkzeug==2.3.6
 reportlab==4.0.4
+openpyxl==3.1.2
 python-dotenv==1.0.0
 sendgrid==6.12.5
 python-arango==8.1.3

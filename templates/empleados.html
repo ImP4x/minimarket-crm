@@ -1,0 +1,150 @@
+{% extends "base.html" %}
+{% block title %}Gestión de Empleados - EcoMarket{% endblock %}
+{% block content %}
+<div class="fade-in">
+    <h1 class="section-title">Gestión de Empleados</h1>
+
+    <!-- 🔎 Buscar -->
+    <div class="search-bar">
+        <form method="GET" action="{{ url_for('empleado.empleados') }}" style="display: flex; gap: 1rem; align-items: center; width: 100%;">
+            <input type="text" name="q" placeholder="Buscar por nombre, apellido o documento" value="{{ q or '' }}" class="search-input">
+            <button class="btn btn-secondary" type="submit">🔍 Buscar</button>
+        </form>
+    </div>
+
+    <!-- ➕ Crear -->
+    <div class="form-card">
+        <h2 class="section-title">Crear Nuevo Empleado</h2>
+        <form method="POST" action="{{ url_for('empleado.empleados') }}">
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Nro. Documento *</label>
+                    <input type="text" name="nro_documento" class="form-control" required>
+                </div>
+                <div class="form-group">
+                    <label>Nombre *</label>
+                    <input type="text" name="nombre" class="form-control" required>
+                </div>
+                <div class="form-group">
+                    <label>Apellido *</label>
+                    <input type="text" name="apellido" class="form-control" required>
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Edad *</label>
+                    <input type="number" name="edad" class="form-control" min="18" max="100" required>
+                </div>
+                <div class="form-group">
+                    <label>Género</label>
+                    <select name="genero" class="form-control">
+                        <option value="">Seleccionar...</option>
+                        <option value="Masculino">Masculino</option>
+                        <option value="Femenino">Femenino</option>
+                        <option value="Otro">Otro</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Cargo</label>
+                    <input type="text" name="cargo" class="form-control">
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Correo</label>
+                    <input type="email" name="correo" class="form-control">
+                </div>
+                <div class="form-group">
+                    <label>Nro. Contacto</label>
+                    <input type="text" name="nro_contacto" class="form-control">
+                </div>
+                <div class="form-group">
+                    <label>Estado</label>
+                    <select name="estado" class="form-control">
+                        <option value="activo" selected>Activo</option>
+                        <option value="inactivo">Inactivo</option>
+                    </select>
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Observaciones</label>
+                    <textarea name="observaciones" class="form-control" rows="2"></textarea>
+                </div>
+            </div>
+            <button class="btn btn-success" type="submit">✅ Crear Empleado</button>
+        </form>
+    </div>
+
+    <!-- 📋 Listado CON SCROLL HORIZONTAL -->
+    <h2 class="section-title">Lista de Empleados</h2>
+    <div class="table-container">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Documento</th>
+                    <th>Nombre</th>
+                    <th>Apellido</th>
+                    <th>Edad</th>
+                    <th>Género</th>
+                    <th>Cargo</th>
+                    <th>Correo</th>
+                    <th>Contacto</th>
+                    <th>Estado</th>
+                    <th>Observaciones</th>
+                    <th>Fecha Registro</th>
+                    <th>Acciones</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for e in empleados %}
+                <tr>
+                    <form method="POST" action="{{ url_for('empleado.editar_empleado', empleado_id=e._key) }}">
+                        <td><strong>{{ e.id_empleado }}</strong></td>
+                        <td><input type="text" name="nro_documento" value="{{ e.nro_documento }}"></td>
+                        <td><input type="text" name="nombre" value="{{ e.nombre }}"></td>
+                        <td><input type="text" name="apellido" value="{{ e.apellido }}"></td>
+                        <td><input type="number" name="edad" value="{{ e.edad }}"></td>
+                        <td>
+                            <select name="genero">
+                                <option value="Masculino" {% if e.genero == "Masculino" %}selected{% endif %}>Masculino</option>
+                                <option value="Femenino" {% if e.genero == "Femenino" %}selected{% endif %}>Femenino</option>
+                                <option value="Otro" {% if e.genero == "Otro" %}selected{% endif %}>Otro</option>
+                            </select>
+                        </td>
+                        <td><input type="text" name="cargo" value="{{ e.cargo }}"></td>
+                        <td><input type="email" name="correo" value="{{ e.correo }}"></td>
+                        <td><input type="text" name="nro_contacto" value="{{ e.nro_contacto }}"></td>
+                        <td>
+                            <select name="estado">
+                                <option value="activo" {% if e.estado == "activo" %}selected{% endif %}>Activo</option>
+                                <option value="inactivo" {% if e.estado == "inactivo" %}selected{% endif %}>Inactivo</option>
+                            </select>
+                        </td>
+                        <td><textarea name="observaciones">{{ e.observaciones }}</textarea></td>
+                        <td>{{ e.fecha_registro[:10] if e.fecha_registro else '-' }}</td>
+                        <td>
+                            <button class="btn btn-success" type="submit">💾</button>
+                        </td>
+                    </form>
+                    <td>
+                        <form method="POST" action="{{ url_for('empleado.eliminar_empleado_route', empleado_id=e._key) }}" 
+                              onsubmit="return confirm('¿Seguro que deseas eliminar este empleado?');">
+                            <button class="btn btn-danger" type="submit">🗑️</button>
+                        </form>
+                    </td>
+                </tr>
+                {% else %}
+                <tr><td colspan="14" style="text-align: center; color: #666;">No hay empleados registrados</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <div style="text-align: center; margin-top: 2rem;">
+        <a href="{{ url_for('auth.dashboard_admin') if session['usuario']['rol'] == 'administrador' else url_for('auth.dashboard_vendedor') }}" 
+           class="btn btn-secondary">← Volver al Panel</a>
+    </div>
+</div>
+{% endblock %}

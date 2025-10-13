@@ -6,6 +6,24 @@
     <p class="welcome-text">Bienvenido {{ usuario.nombre }}, gestiona todos los módulos del sistema</p>
 
     <div class="modules-grid">
+        <a href="{{ url_for('empleado.empleados') }}" class="module-card">
+            <div class="module-icon">👨‍💼</div>
+            <h3 class="module-title">Gestión de Empleados</h3>
+            <p class="module-desc">Administra la información de todos los empleados</p>
+        </a>
+
+        <a href="{{ url_for('contrato.contratos') }}" class="module-card">
+            <div class="module-icon">📝</div>
+            <h3 class="module-title">Gestión de Contratos</h3>
+            <p class="module-desc">Administra contratos de empleados</p>
+        </a>
+
+        <a href="{{ url_for('empleado.buscar_empleados') }}" class="module-card">
+            <div class="module-icon">🔍</div>
+            <h3 class="module-title">Buscar Empleados</h3>
+            <p class="module-desc">Búsqueda avanzada y exportación PDF/Excel</p>
+        </a>
+
         <a href="{{ url_for('cliente.clientes') }}" class="module-card">
             <div class="module-icon">👥</div>
             <h3 class="module-title">Gestión de Clientes</h3>
