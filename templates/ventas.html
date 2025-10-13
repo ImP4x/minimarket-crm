@@ -15,7 +15,7 @@
                 <select id="cliente" name="cliente" class="form-control" required>
                     <option value="">Seleccionar cliente...</option>
                     {% for c in clientes %}
-                        <option value="{{ c._id }}">{{ c.nombre }} ({{ c.email or 'Sin email' }})</option>
+                        <option value="{{ c._key }}">{{ c.nombre }} ({{ c.email or 'Sin email' }})</option>
                     {% endfor %}
                 </select>
             </div>
@@ -27,7 +27,7 @@
                 <select id="producto" name="producto" class="form-control">
                     <option value="">Seleccionar producto...</option>
                     {% for p in productos %}
-                        <option value="{{ p._id }}" 
+                        <option value="{{ p._key }}" 
                                 data-nombre="{{ p.nombre }}" 
                                 data-precio="{{ p.precio }}" 
                                 data-stock="{{ p.stock }}">
