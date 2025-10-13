@@ -11,23 +11,30 @@ from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, 
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib.units import inch
 from reportlab.pdfgen import canvas
-from bson.objectid import ObjectId
 from datetime import datetime, timedelta
-import gridfs
 from config import db
+import base64
+
 
 
 ventas_bp = Blueprint("ventas", __name__)
 
 
-# Inicializar GridFS
-fs = gridfs.GridFS(db)
+# Obtener o crear colecciones
+def get_collection(name):
+    """Helper para obtener o crear una colección"""
+    if db.has_collection(name):
+        return db.collection(name)
+    else:
+        return db.create_collection(name)
 
-# Referencias a colecciones (nombres diferentes para evitar conflictos)
-ventas_collection = db["ventas"]
-facturas_collection = db["historial_facturas"]
-productos_collection = db["productos"]
-stock_collection = db["stock"]
+
+# Referencias a colecciones
+ventas_collection = get_collection("ventas")
+facturas_collection = get_collection("historial_facturas")
+productos_collection = get_collection("productos")
+stock_collection = get_collection("stock")
+
 
 
 # -------------------------
@@ -80,8 +87,8 @@ def generar_pdf_factura_mejorada(factura):
     elements.append(Spacer(1, 20))
     
     # ===== INFORMACIÓN DE FACTURA Y CLIENTE EN DOS COLUMNAS =====
-    # Convertir ObjectId a string y luego hacer el slice
-    factura_id_str = str(factura.get('_id', ''))[:12]
+    # Usar _key en lugar de _id
+    factura_id_str = str(factura.get('_key', ''))[:12]
     
     info_izquierda = f"""
     <b><font color='#165d2a' size='12'>INFORMACIÓN DE FACTURA</font></b><br/>
@@ -239,6 +246,7 @@ def generar_pdf_factura_mejorada(factura):
 
 
 
+
 # Mantener función original para compatibilidad
 def generar_pdf_factura(factura):
     """Genera un PDF en memoria con los datos de la factura y devuelve los bytes."""
@@ -248,7 +256,7 @@ def generar_pdf_factura(factura):
     p.drawString(200, 770, "MINIMARKET CRM - FACTURA")
 
     p.setFont("Helvetica", 12)
-    p.drawString(50, 740, f"Factura ID: {str(factura.get('_id', ''))}")
+    p.drawString(50, 740, f"Factura ID: {str(factura.get('_key', ''))}")
     p.drawString(50, 720, f"Fecha: {factura['fecha'].strftime('%Y-%m-%d %H:%M:%S')}")
 
     # Línea de separación
@@ -264,8 +272,8 @@ def generar_pdf_factura(factura):
     p.setFont("Helvetica-Bold", 12)
     p.drawString(50, 640, "Detalle de la Venta")
     p.setFont("Helvetica", 12)
-    p.drawString(50, 620, f"Producto: {factura['producto']}")
-    p.drawString(50, 600, f"Cantidad: {factura['cantidad']}")
+    p.drawString(50, 620, f"Producto: {factura.get('producto', 'Múltiples productos')}")
+    p.drawString(50, 600, f"Cantidad: {factura.get('cantidad', 'Ver detalle')}")
     p.drawString(50, 580, f"Total: ${factura['total']}")
 
     # Vendedor
@@ -284,6 +292,7 @@ def generar_pdf_factura(factura):
     p.save()
     buffer.seek(0)
     return buffer.getvalue()
+
 
 
 # 📌 Registro de ventas (con carrito múltiple - UNA SOLA FACTURA)
@@ -325,7 +334,7 @@ def ventas():
                 
                 # Validar producto y stock
                 try:
-                    prod = productos_collection.find_one({"_id": ObjectId(str(producto_id))})
+                    prod = productos_collection.get(str(producto_id))
                 except Exception:
                     prod = None
                 
@@ -343,11 +352,16 @@ def ventas():
                 subtotal = precio * cantidad
                 total_factura += subtotal
                 
-                # Actualizar stock
-                stock_collection.update_one(
-                    {"producto_id": ObjectId(str(producto_id))},
-                    {"$inc": {"cantidad": -int(cantidad)}}
-                )
+                # Actualizar stock usando AQL
+                aql = """
+                FOR s IN stock
+                    FILTER s.producto_id == @producto_id
+                    UPDATE s WITH {cantidad: s.cantidad - @cantidad} IN stock
+                """
+                db.aql.execute(aql, bind_vars={
+                    "producto_id": str(producto_id),
+                    "cantidad": int(cantidad)
+                })
                 
                 # Agregar producto a la lista de la factura
                 productos_factura.append({
@@ -364,14 +378,14 @@ def ventas():
             
             # Crear UNA SOLA venta con todos los productos
             venta_doc = {
-                "cliente_id": ObjectId(str(cliente["_id"])),
+                "cliente_id": str(cliente.get("_key")),
                 "productos": productos_factura,
                 "total": total_factura,
                 "fecha": datetime.utcnow(),
                 "vendedor": str(vendedor)
             }
-            venta_res = ventas_collection.insert_one(venta_doc)
-            venta_id = venta_res.inserted_id
+            venta_res = ventas_collection.insert(venta_doc)
+            venta_id = venta_res["_key"]
             
             # Crear UNA SOLA factura con todos los productos
             factura_doc = {
@@ -383,18 +397,20 @@ def ventas():
                 "fecha": datetime.utcnow(),
                 "vendedor": str(vendedor)
             }
-            facturas_collection.insert_one(factura_doc)
+            factura_res = facturas_collection.insert(factura_doc)
             
-            # Generar PDF con todos los productos
+            # Generar PDF con todos los productos y guardarlo como base64
             factura = obtener_factura(str(venta_id))
             if factura:
                 pdf_bytes = generar_pdf_factura_mejorada(factura)
-                pdf_id = fs.put(pdf_bytes, filename=f"factura_{venta_id}.pdf")
+                pdf_base64 = base64.b64encode(pdf_bytes).decode('utf-8')
                 
-                facturas_collection.update_one(
-                    {"venta_id": ObjectId(str(venta_id))},
-                    {"$set": {"pdf_id": pdf_id}}
-                )
+                # Actualizar factura con PDF en base64
+                factura_actualizada = facturas_collection.get(factura["_key"])
+                facturas_collection.update({
+                    **factura_actualizada,
+                    "pdf_data": pdf_base64
+                })
             
             flash(f"✅ Venta procesada exitosamente: {len(productos_factura)} producto(s) vendido(s)")
             return redirect(url_for("ventas.ver_factura", venta_id=venta_id))
@@ -412,6 +428,7 @@ def ventas():
     return render_template("ventas.html", productos=productos_list, clientes=clientes)
 
 
+
 # 📌 Ver factura en HTML
 @ventas_bp.route("/ventas/factura/<venta_id>")
 def ver_factura(venta_id):
@@ -426,24 +443,28 @@ def ver_factura(venta_id):
     return render_template("factura.html", factura=factura)
 
 
-# 📌 Descargar factura en PDF (desde BD - GridFS)
+
+# 📌 Descargar factura en PDF (desde base64)
 @ventas_bp.route("/ventas/factura/<venta_id>/pdf")
 def descargar_factura_pdf(venta_id):
     if "usuario" not in session:
         return redirect(url_for("auth.login"))
 
     factura = obtener_factura(venta_id)
-    if not factura or "pdf_id" not in factura:
+    if not factura or "pdf_data" not in factura:
         flash("PDF no disponible para esta factura")
         return redirect(url_for("ventas.ver_factura", venta_id=venta_id))
 
-    pdf_file = fs.get(factura["pdf_id"])
+    # Decodificar base64 a bytes
+    pdf_bytes = base64.b64decode(factura["pdf_data"])
+    
     return send_file(
-        BytesIO(pdf_file.read()),
+        BytesIO(pdf_bytes),
         as_attachment=True,
         download_name=f"factura_{venta_id}.pdf",
         mimetype="application/pdf"
     )
+
 
 
 # 📌 Listar todas las facturas
@@ -456,6 +477,7 @@ def listar_facturas_view():
     return render_template("facturas.html", facturas=facturas_list)
 
 
+
 # 📌 Mostrar stock actual
 @ventas_bp.route("/ventas/stock")
 def ver_stock():
@@ -464,6 +486,7 @@ def ver_stock():
 
     productos_list = listar_productos()
     return render_template("stock.html", productos=productos_list)
+
 
 
 # 📊 NUEVO: Reporte de ventas con filtros de periodo

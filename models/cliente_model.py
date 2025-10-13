@@ -1,19 +1,34 @@
 from datetime import datetime
-from bson.objectid import ObjectId
 from config import db
 import re
 
-clientes = db["clientes"]
-counters = db["counters"]
+
+# Obtener o crear colecciones
+def get_collection(name):
+    """Helper para obtener o crear una colección"""
+    if db.has_collection(name):
+        return db.collection(name)
+    else:
+        return db.create_collection(name)
+
+
+clientes = get_collection("clientes")
+counters = get_collection("counters")
+
 
 def obtener_siguiente_id(nombre_secuencia):
-    secuencia = counters.find_one_and_update(
-        {"_id": nombre_secuencia},
-        {"$inc": {"valor": 1}},
-        upsert=True,
-        return_document=True
-    )
-    return secuencia["valor"]
+    """Obtiene el siguiente ID autoincrementable para una secuencia"""
+    try:
+        # Intentar obtener el contador existente
+        counter_doc = counters.get(nombre_secuencia)
+        nuevo_valor = counter_doc["valor"] + 1
+        counters.update({"_key": nombre_secuencia, "valor": nuevo_valor})
+        return nuevo_valor
+    except:
+        # Si no existe, crearlo
+        counters.insert({"_key": nombre_secuencia, "valor": 1})
+        return 1
+
 
 def crear_cliente(nombre, email, telefono, direccion, ciudad, pais):
     email_norm = email.strip().lower() if email else ""
@@ -29,30 +44,46 @@ def crear_cliente(nombre, email, telefono, direccion, ciudad, pais):
         "pais": pais.strip() if pais else "",
         "fecha_registro": datetime.utcnow()
     }
-    return clientes.insert_one(cliente)
+    return clientes.insert(cliente)
+
 
 def listar_clientes(filtro_q=None):
-    query = {}
     if filtro_q:
-        q = re.escape(filtro_q.strip())
-        query = {"$or": [
-            {"nombre": {"$regex": q, "$options": "i"}},
-            {"email": {"$regex": q, "$options": "i"}},
-            {"ciudad": {"$regex": q, "$options": "i"}},
-            {"pais": {"$regex": q, "$options": "i"}}
-        ]}
-    cursor = clientes.find(query).sort("fecha_registro", -1)
-    return list(cursor)
+        q = filtro_q.strip().lower()
+        # Usar AQL para búsqueda con filtros
+        aql = """
+        FOR cliente IN clientes
+            FILTER LOWER(cliente.nombre) LIKE @q OR
+                   LOWER(cliente.email) LIKE @q OR
+                   LOWER(cliente.ciudad) LIKE @q OR
+                   LOWER(cliente.pais) LIKE @q
+            SORT cliente.fecha_registro DESC
+            RETURN cliente
+        """
+        cursor = db.aql.execute(aql, bind_vars={"q": f"%{q}%"})
+        return list(cursor)
+    else:
+        # Sin filtro, obtener todos
+        aql = """
+        FOR cliente IN clientes
+            SORT cliente.fecha_registro DESC
+            RETURN cliente
+        """
+        cursor = db.aql.execute(aql)
+        return list(cursor)
+
 
 def buscar_cliente_por_id(client_id):
     try:
-        return clientes.find_one({"_id": ObjectId(str(client_id))})
+        return clientes.get(str(client_id))
     except Exception as e:
         print("❌ buscar_cliente_por_id error:", e)
         return None
 
+
 def obtener_cliente_por_id(client_id):
     return buscar_cliente_por_id(client_id)
+
 
 def actualizar_cliente(client_id, nombre=None, email=None, telefono=None,
                       direccion=None, ciudad=None, pais=None):
@@ -74,23 +105,31 @@ def actualizar_cliente(client_id, nombre=None, email=None, telefono=None,
         return {"matched_count": 0, "modified_count": 0}
 
     try:
-        res = clientes.update_one({"_id": ObjectId(str(client_id))}, {"$set": cambios})
-        return {"matched_count": res.matched_count, "modified_count": res.modified_count}
+        cliente = clientes.get(str(client_id))
+        if cliente:
+            clientes.update({**cliente, **cambios})
+            return {"matched_count": 1, "modified_count": 1}
+        return {"matched_count": 0, "modified_count": 0}
     except Exception as e:
         print("❌ actualizar_cliente error:", e)
         return {"matched_count": 0, "modified_count": 0}
 
+
 def eliminar_cliente(client_id):
     try:
-        res = clientes.delete_one({"_id": ObjectId(str(client_id))})
-        return {"deleted_count": res.deleted_count}
+        clientes.delete(str(client_id))
+        return {"deleted_count": 1}
     except Exception as e:
         print("❌ eliminar_cliente error:", e)
         return {"deleted_count": 0}
 
+
 def reporte_por_pais():
-    pipeline = [
-        {"$group": {"_id": "$pais", "total": {"$sum": 1}}},
-        {"$sort": {"total": -1}}
-    ]
-    return list(clientes.aggregate(pipeline))
+    aql = """
+    FOR cliente IN clientes
+        COLLECT pais = cliente.pais WITH COUNT INTO total
+        SORT total DESC
+        RETURN {_id: pais, total: total}
+    """
+    cursor = db.aql.execute(aql)
+    return list(cursor)

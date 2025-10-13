@@ -1,12 +1,22 @@
-from bson.objectid import ObjectId
 from datetime import datetime
 from config import db
 
+
+# Obtener o crear colecciones
+def get_collection(name):
+    """Helper para obtener o crear una colección"""
+    if db.has_collection(name):
+        return db.collection(name)
+    else:
+        return db.create_collection(name)
+
+
 # Colecciones
-productos = db["productos"]
-stock = db["stock"]
-ventas = db["ventas"]
-facturas = db["historial_facturas"]
+productos = get_collection("productos")
+stock = get_collection("stock")
+ventas = get_collection("ventas")
+facturas = get_collection("historial_facturas")
+
 
 # -----------------------
 # Productos / Stock
@@ -16,14 +26,18 @@ def listar_productos():
     Devuelve una lista de productos. Cada producto trae además el campo 'stock'
     con la cantidad disponible (0 si no existe registro de stock).
     """
-    docs = list(productos.find())
-    for p in docs:
-        try:
-            s = stock.find_one({"producto_id": p["_id"]})
-            p["stock"] = s["cantidad"] if s and "cantidad" in s else 0
-        except Exception:
-            p["stock"] = 0
-    return docs
+    aql = """
+    FOR producto IN productos
+        LET stock_info = FIRST(
+            FOR s IN stock
+                FILTER s.producto_id == producto._key
+                RETURN s
+        )
+        RETURN MERGE(producto, {stock: stock_info ? stock_info.cantidad : 0})
+    """
+    cursor = db.aql.execute(aql)
+    return list(cursor)
+
 
 def registrar_producto(nombre, precio, cantidad_inicial=0):
     """
@@ -34,24 +48,35 @@ def registrar_producto(nombre, precio, cantidad_inicial=0):
         "nombre": str(nombre).strip(),
         "precio": float(precio)
     }
-    res = productos.insert_one(doc)
-    prod_id = res.inserted_id
-    stock.insert_one({"producto_id": prod_id, "cantidad": int(cantidad_inicial)})
+    res = productos.insert(doc)
+    prod_id = res["_key"]
+    stock.insert({"producto_id": prod_id, "cantidad": int(cantidad_inicial)})
     return str(prod_id)
 
+
 def obtener_producto(producto_id):
-    """Devuelve el documento del producto (o None). Acepta str/ObjectId."""
+    """Devuelve el documento del producto (o None). Acepta str."""
     try:
-        return productos.find_one({"_id": ObjectId(str(producto_id))})
+        return productos.get(str(producto_id))
     except Exception:
         return None
+
 
 def obtener_stock(producto_id):
     """Devuelve el documento de stock para un producto (o None)."""
     try:
-        return stock.find_one({"producto_id": ObjectId(str(producto_id))})
+        aql = """
+        FOR s IN stock
+            FILTER s.producto_id == @producto_id
+            LIMIT 1
+            RETURN s
+        """
+        cursor = db.aql.execute(aql, bind_vars={"producto_id": str(producto_id)})
+        resultado = list(cursor)
+        return resultado[0] if resultado else None
     except Exception:
         return None
+
 
 def actualizar_stock(producto_id, delta):
     """
@@ -59,14 +84,25 @@ def actualizar_stock(producto_id, delta):
     Devuelve dict con matched_count y modified_count.
     """
     try:
-        res = stock.update_one(
-            {"producto_id": ObjectId(str(producto_id))},
-            {"$inc": {"cantidad": int(delta)}}
-        )
-        return {"matched_count": res.matched_count, "modified_count": res.modified_count}
+        aql = """
+        FOR s IN stock
+            FILTER s.producto_id == @producto_id
+            UPDATE s WITH {cantidad: s.cantidad + @delta} IN stock
+            RETURN NEW
+        """
+        cursor = db.aql.execute(aql, bind_vars={
+            "producto_id": str(producto_id),
+            "delta": int(delta)
+        })
+        resultado = list(cursor)
+        
+        if resultado:
+            return {"matched_count": 1, "modified_count": 1}
+        return {"matched_count": 0, "modified_count": 0}
     except Exception as e:
         print("❌ actualizar_stock error:", e)
         return {"matched_count": 0, "modified_count": 0}
+
 
 # -----------------------
 # Ventas / Facturación
@@ -84,7 +120,7 @@ def registrar_venta(cliente, producto_id, cantidad, vendedor=None):
         return None, "Datos de venta inválidos."
 
     try:
-        prod = productos.find_one({"_id": ObjectId(str(producto_id))})
+        prod = productos.get(str(producto_id))
     except Exception:
         prod = None
 
@@ -99,21 +135,18 @@ def registrar_venta(cliente, producto_id, cantidad, vendedor=None):
 
     # 1) insertar venta
     venta_doc = {
-        "cliente_id": ObjectId(str(cliente["_id"])),
-        "producto_id": ObjectId(str(producto_id)),
+        "cliente_id": str(cliente.get("_key")),
+        "producto_id": str(producto_id),
         "cantidad": int(cantidad),
         "total": total,
         "fecha": datetime.utcnow(),
         "vendedor": str(vendedor) if vendedor else None
     }
-    venta_res = ventas.insert_one(venta_doc)
-    venta_id = venta_res.inserted_id
+    venta_res = ventas.insert(venta_doc)
+    venta_id = venta_res["_key"]
 
     # 2) actualizar stock (-cantidad)
-    stock.update_one(
-        {"producto_id": ObjectId(str(producto_id))},
-        {"$inc": {"cantidad": -int(cantidad)}}
-    )
+    actualizar_stock(producto_id, -int(cantidad))
 
     # 3) crear factura en historial_facturas
     factura_doc = {
@@ -126,26 +159,42 @@ def registrar_venta(cliente, producto_id, cantidad, vendedor=None):
         "fecha": datetime.utcnow(),
         "vendedor": str(vendedor) if vendedor else None
     }
-    facturas.insert_one(factura_doc)
+    facturas.insert(factura_doc)
 
     return str(venta_id), None
 
+
 def obtener_factura(venta_id):
     """
-    Busca en 'historial_facturas' el documento que tenga venta_id = ObjectId(venta_id).
+    Busca en 'historial_facturas' el documento que tenga venta_id = venta_id.
     Devuelve el documento o None.
     """
     try:
-        doc = facturas.find_one({"venta_id": ObjectId(str(venta_id))})
-        return doc
+        aql = """
+        FOR factura IN historial_facturas
+            FILTER factura.venta_id == @venta_id
+            LIMIT 1
+            RETURN factura
+        """
+        cursor = db.aql.execute(aql, bind_vars={"venta_id": str(venta_id)})
+        resultado = list(cursor)
+        return resultado[0] if resultado else None
     except Exception:
         return None
+
 
 def listar_facturas():
     """
     Devuelve todas las facturas ordenadas por fecha descendente.
     """
-    return list(facturas.find().sort("fecha", -1))
+    aql = """
+    FOR factura IN historial_facturas
+        SORT factura.fecha DESC
+        RETURN factura
+    """
+    cursor = db.aql.execute(aql)
+    return list(cursor)
+
 
 # -----------------------
 # NUEVO: Reportes de Ventas
@@ -156,24 +205,31 @@ def obtener_ventas_por_periodo(fecha_inicio, fecha_fin):
     Retorna un diccionario con total de ventas, cantidad de transacciones, etc.
     """
     try:
-        # Pipeline para obtener estadísticas generales
-        pipeline = [
-            {"$match": {"fecha": {"$gte": fecha_inicio, "$lte": fecha_fin}}},
-            {"$group": {
-                "_id": None,
-                "total_ventas": {"$sum": "$total"},
-                "cantidad_transacciones": {"$sum": 1},
-                "promedio_venta": {"$avg": "$total"}
-            }}
-        ]
-        resultado = list(ventas.aggregate(pipeline))
+        aql = """
+        FOR venta IN ventas
+            FILTER venta.fecha >= @fecha_inicio AND venta.fecha <= @fecha_fin
+            COLLECT AGGREGATE 
+                total_ventas = SUM(venta.total),
+                cantidad_transacciones = COUNT(1),
+                promedio_venta = AVG(venta.total)
+            RETURN {
+                total_ventas: total_ventas,
+                cantidad_transacciones: cantidad_transacciones,
+                promedio_venta: promedio_venta
+            }
+        """
+        cursor = db.aql.execute(aql, bind_vars={
+            "fecha_inicio": fecha_inicio,
+            "fecha_fin": fecha_fin
+        })
+        resultado = list(cursor)
         
         if resultado:
             stats = resultado[0]
             return {
-                "total_ventas": round(stats.get("total_ventas", 0), 2),
-                "cantidad_transacciones": stats.get("cantidad_transacciones", 0),
-                "promedio_venta": round(stats.get("promedio_venta", 0), 2)
+                "total_ventas": round(stats.get("total_ventas", 0) or 0, 2),
+                "cantidad_transacciones": stats.get("cantidad_transacciones", 0) or 0,
+                "promedio_venta": round(stats.get("promedio_venta", 0) or 0, 2)
             }
         else:
             return {
@@ -189,56 +245,57 @@ def obtener_ventas_por_periodo(fecha_inicio, fecha_fin):
             "promedio_venta": 0.0
         }
 
+
 def obtener_ventas_detalladas_por_periodo(fecha_inicio, fecha_fin):
     """
     Obtiene lista detallada de ventas por periodo con información de cliente y producto.
     """
     try:
-        pipeline = [
-            {"$match": {"fecha": {"$gte": fecha_inicio, "$lte": fecha_fin}}},
-            {"$lookup": {
-                "from": "clientes",
-                "localField": "cliente_id",
-                "foreignField": "_id",
-                "as": "cliente_info"
-            }},
-            {"$lookup": {
-                "from": "productos", 
-                "localField": "producto_id",
-                "foreignField": "_id",
-                "as": "producto_info"
-            }},
-            {"$sort": {"fecha": -1}}
-        ]
+        aql = """
+        FOR venta IN ventas
+            FILTER venta.fecha >= @fecha_inicio AND venta.fecha <= @fecha_fin
+            LET cliente = FIRST(
+                FOR c IN clientes
+                    FILTER c._key == venta.cliente_id
+                    RETURN c
+            )
+            LET producto = FIRST(
+                FOR p IN productos
+                    FILTER p._key == venta.producto_id
+                    RETURN p
+            )
+            SORT venta.fecha DESC
+            RETURN {
+                _id: venta._key,
+                fecha: venta.fecha,
+                cliente_nombre: cliente ? cliente.nombre : "Cliente no encontrado",
+                producto_nombre: producto ? producto.nombre : "Producto no encontrado",
+                cantidad: venta.cantidad,
+                total: venta.total,
+                vendedor: venta.vendedor ? venta.vendedor : "N/A"
+            }
+        """
+        cursor = db.aql.execute(aql, bind_vars={
+            "fecha_inicio": fecha_inicio,
+            "fecha_fin": fecha_fin
+        })
         
-        resultado = list(ventas.aggregate(pipeline))
-        
-        # Procesar resultados para facilitar uso en template
-        ventas_procesadas = []
-        for venta in resultado:
-            cliente = venta.get("cliente_info", [{}])[0]
-            producto = venta.get("producto_info", [{}])[0]
-            
-            ventas_procesadas.append({
-                "_id": venta["_id"],
-                "fecha": venta["fecha"],
-                "cliente_nombre": cliente.get("nombre", "Cliente no encontrado"),
-                "producto_nombre": producto.get("nombre", "Producto no encontrado"),
-                "cantidad": venta["cantidad"],
-                "total": venta["total"],
-                "vendedor": venta.get("vendedor", "N/A")
-            })
-        
-        return ventas_procesadas
+        return list(cursor)
     except Exception as e:
         print(f"❌ Error obtener_ventas_detalladas_por_periodo: {e}")
         return []
+
 
 # -----------------------
 # Utilidades / Depuración
 # -----------------------
 def contar_stock_total():
     """Ejemplo: suma total de stock (helper)."""
-    cursor = stock.aggregate([{"$group": {"_id": None, "total": {"$sum": "$cantidad"}}}])
-    res = list(cursor)
-    return res[0]["total"] if res else 0
+    aql = """
+    FOR s IN stock
+        COLLECT AGGREGATE total = SUM(s.cantidad)
+        RETURN total
+    """
+    cursor = db.aql.execute(aql)
+    resultado = list(cursor)
+    return resultado[0] if resultado else 0
