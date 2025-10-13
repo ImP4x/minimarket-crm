@@ -21,7 +21,7 @@ def crear_producto(nombre, precio, categoria="", cantidad_inicial=0):
         "nombre": nombre.strip(),
         "precio": float(precio),
         "categoria": categoria.strip(),
-        "fecha_registro": datetime.utcnow()
+        "fecha_registro": datetime.utcnow().isoformat()  # ✅ CAMBIO: guardar como string ISO
     }
     res = productos.insert(doc)
     producto_id = res["_key"]
@@ -29,7 +29,7 @@ def crear_producto(nombre, precio, categoria="", cantidad_inicial=0):
     stock.insert({
         "producto_id": producto_id,
         "cantidad": int(cantidad_inicial),
-        "ultima_actualizacion": datetime.utcnow()
+        "ultima_actualizacion": datetime.utcnow().isoformat()  # ✅ CAMBIO: guardar como string ISO
     })
     
     # Retornar objeto similar a MongoDB para mantener compatibilidad
@@ -50,7 +50,10 @@ def listar_productos():
                 RETURN s
         )
         SORT producto.fecha_registro DESC
-        RETURN MERGE(producto, {stock_info: stock_info})
+        RETURN MERGE(producto, {
+            stock_info: stock_info,
+            stock: stock_info ? stock_info.cantidad : 0
+        })
     """
     cursor = db.aql.execute(aql)
     return list(cursor)
@@ -91,14 +94,14 @@ def actualizar_producto(producto_id, nombre=None, precio=None, categoria=None, c
                 stock.update({
                     **stock_doc,
                     "cantidad": int(cantidad),
-                    "ultima_actualizacion": datetime.utcnow()
+                    "ultima_actualizacion": datetime.utcnow().isoformat()  # ✅ CAMBIO: guardar como string ISO
                 })
             else:
                 # Crear nuevo registro de stock
                 stock.insert({
                     "producto_id": str(producto_id),
                     "cantidad": int(cantidad),
-                    "ultima_actualizacion": datetime.utcnow()
+                    "ultima_actualizacion": datetime.utcnow().isoformat()  # ✅ CAMBIO: guardar como string ISO
                 })
         except Exception as e:
             print("❌ Error actualizando stock:", e)
