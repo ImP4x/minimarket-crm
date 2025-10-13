@@ -4,6 +4,7 @@
 <div class="fade-in">
     <h1 class="section-title">Gestión de Usuarios</h1>
 
+
     <!-- Formulario para crear nuevo usuario -->
     <div class="form-card">
         <h2 class="section-title">Crear Nuevo Usuario</h2>
@@ -45,6 +46,7 @@
         </form>
     </div>
 
+
     <!-- 📋 Listado CON SCROLL HORIZONTAL -->
     <h2 class="section-title">Lista de Usuarios</h2>
     <div class="table-container">
@@ -64,7 +66,7 @@
             <tbody>
                 {% for u in usuarios %}
                 <tr>
-                    <form method="POST" action="{{ url_for('usuarios.editar_usuario', user_id=u._id) }}">
+                    <form method="POST" action="{{ url_for('usuarios.editar_usuario', user_id=u._key) }}">
                         <td><strong>{{ u.id_usuario }}</strong></td>
                         <td><input type="text" name="nombre" value="{{ u.nombre }}"></td>
                         <td><input type="email" name="email" value="{{ u.email }}"></td>
@@ -84,13 +86,13 @@
                         <td>
                             <input type="password" name="nueva_password" placeholder="Dejar vacío si no cambia">
                         </td>
-                        <td>{{ u.fecha_registro.strftime('%Y-%m-%d') if u.fecha_registro else '-' }}</td>
+                        <td>{{ u.fecha_registro[:10] if u.fecha_registro else '-' }}</td>
                         <td>
                             <button class="btn btn-success" type="submit" style="margin-right: 5px;">💾</button>
                         </td>
                     </form>
                     <td>
-                        <form method="POST" action="{{ url_for('usuarios.eliminar_usuario_route', user_id=u._id) }}" 
+                        <form method="POST" action="{{ url_for('usuarios.eliminar_usuario_route', user_id=u._key) }}" 
                               onsubmit="return confirm('Eliminar usuario?');">
                             <button class="btn btn-danger" type="submit">🗑️</button>
                         </form>
@@ -102,6 +104,7 @@
             </tbody>
         </table>
     </div>
+
 
     <div style="text-align: center; margin-top: 2rem;">
         <a href="{{ url_for('auth.dashboard_admin') }}" class="btn btn-secondary">← Volver al Panel</a>

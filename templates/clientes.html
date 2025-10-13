@@ -4,6 +4,7 @@
 <div class="fade-in">
     <h1 class="section-title">Gestión de Clientes</h1>
 
+
     <!-- 🔎 Buscar -->
     <div class="search-bar">
         <form method="GET" action="{{ url_for('cliente.clientes') }}" style="display: flex; gap: 1rem; align-items: center; width: 100%;">
@@ -12,6 +13,7 @@
             <a class="btn btn-secondary" href="{{ url_for('cliente.reporte_clientes_por_pais') }}">📊 Reporte por país</a>
         </form>
     </div>
+
 
     <!-- ➕ Crear -->
     <div class="form-card">
@@ -49,6 +51,7 @@
         </form>
     </div>
 
+
     <!-- 📋 Listado CON SCROLL HORIZONTAL -->
     <h2 class="section-title">Lista de Clientes</h2>
     <div class="table-container">
@@ -69,7 +72,7 @@
             <tbody>
                 {% for c in clientes %}
                 <tr>
-                    <form method="POST" action="{{ url_for('cliente.editar_cliente', client_id=c._id) }}">
+                    <form method="POST" action="{{ url_for('cliente.editar_cliente', client_id=c._key) }}">
                         <td><strong>{{ c.id_cliente }}</strong></td>
                         <td><input type="text" name="nombre" value="{{ c.nombre }}"></td>
                         <td><input type="email" name="email" value="{{ c.email }}"></td>
@@ -79,7 +82,7 @@
                         <td><input type="text" name="pais" value="{{ c.pais }}"></td>
                         <td>
                             {% if c.fecha_registro %}
-                                {{ c.fecha_registro.strftime('%Y-%m-%d %H:%M') }}
+                                {{ c.fecha_registro[:16].replace('T', ' ') }}
                             {% else %}
                                 -
                             {% endif %}
@@ -89,7 +92,7 @@
                         </td>
                     </form>
                     <td>
-                        <form method="POST" action="{{ url_for('cliente.eliminar_cliente_route', client_id=c._id) }}" 
+                        <form method="POST" action="{{ url_for('cliente.eliminar_cliente_route', client_id=c._key) }}" 
                               onsubmit="return confirm('¿Seguro que deseas eliminar este cliente?');" style="display:inline;">
                             <button class="btn btn-danger" type="submit">🗑️</button>
                         </form>
@@ -101,6 +104,7 @@
             </tbody>
         </table>
     </div>
+
 
     <div style="text-align: center; margin-top: 2rem;">
         <a href="{{ url_for('auth.dashboard_admin') if session['usuario']['rol'] == 'administrador' else url_for('auth.dashboard_vendedor') }}" 

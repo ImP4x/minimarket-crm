@@ -4,6 +4,7 @@
 <div class="fade-in">
     <h1 class="section-title">📄 Historial de Facturas</h1>
 
+
     <div class="table-container">
         <table class="table">
             <thead>
@@ -21,15 +22,15 @@
             <tbody>
                 {% for f in facturas %}
                 <tr>
-                    <td><strong>{{ f._id }}</strong></td>
+                    <td><strong>{{ f._key }}</strong></td>
                     <td>{{ f.cliente }}</td>
-                    <td>{{ f.producto }}</td>
-                    <td style="text-align: center;">{{ f.cantidad }}</td>
+                    <td>{{ f.producto if f.producto else 'Múltiples productos' }}</td>
+                    <td style="text-align: center;">{{ f.cantidad if f.cantidad else '-' }}</td>
                     <td style="text-align: right; color: var(--color-primary); font-weight: bold;">
                         ${{ "%.2f"|format(f.total) }}
                     </td>
                     <td>{{ f.vendedor or 'N/A' }}</td>
-                    <td>{{ f.fecha.strftime('%Y-%m-%d %H:%M') }}</td>
+                    <td>{{ f.fecha[:16].replace('T', ' ') if f.fecha else '-' }}</td>
                     <td>
                         <a href="{{ url_for('ventas.ver_factura', venta_id=f.venta_id) }}" 
                            class="btn btn-secondary" style="font-size: 0.8rem; padding: 6px 12px;">
@@ -43,6 +44,7 @@
             </tbody>
         </table>
     </div>
+
 
     <div style="text-align: center; margin-top: 2rem;">
         <a href="{{ url_for('ventas.ventas') }}" class="btn btn-secondary">← Volver a Ventas</a>

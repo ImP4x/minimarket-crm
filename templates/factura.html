@@ -9,11 +9,12 @@
         </div>
 
 
+
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; margin-bottom: 2rem;">
             <div>
                 <h3 style="color: var(--color-primary); margin-bottom: 1rem;">Información de Factura</h3>
-                <p><strong>Factura ID:</strong> {{ factura._id }}</p>
-                <p><strong>Fecha:</strong> {{ factura.fecha.strftime("%Y-%m-%d %H:%M:%S") }}</p>
+                <p><strong>Factura ID:</strong> {{ factura._key }}</p>
+                <p><strong>Fecha:</strong> {{ factura.fecha[:19].replace('T', ' ') if factura.fecha else '-' }}</p>
                 <p><strong>Atendido por:</strong> {{ factura.vendedor or "N/A" }}</p>
             </div>
             <div>
@@ -24,6 +25,7 @@
                 </p>
             </div>
         </div>
+
 
 
         <div style="background: var(--color-light); padding: 1.5rem; border-radius: var(--border-radius); margin-bottom: 2rem;">
@@ -89,10 +91,12 @@
         </div>
 
 
+
         <div style="text-align: center; margin-bottom: 2rem;">
             <a href="{{ url_for('ventas.descargar_factura_pdf', venta_id=factura.venta_id) }}" 
                class="btn btn-success">📄 Descargar PDF</a>
         </div>
+
 
 
         <div style="text-align: center;">
@@ -100,6 +104,7 @@
         </div>
     </div>
 </div>
+
 
 
 <!-- Responsive para móvil -->
