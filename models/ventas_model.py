@@ -133,13 +133,13 @@ def registrar_venta(cliente, producto_id, cantidad, vendedor=None):
 
     total = float(prod.get("precio", 0)) * int(cantidad)
 
-    # 1) insertar venta
+    # 1) insertar venta (GUARDAR FECHA COMO STRING ISO)
     venta_doc = {
         "cliente_id": str(cliente.get("_key")),
         "producto_id": str(producto_id),
         "cantidad": int(cantidad),
         "total": total,
-        "fecha": datetime.utcnow(),
+        "fecha": datetime.utcnow().isoformat(),  # ✅ CAMBIO: convertir a string ISO
         "vendedor": str(vendedor) if vendedor else None
     }
     venta_res = ventas.insert(venta_doc)
@@ -148,7 +148,7 @@ def registrar_venta(cliente, producto_id, cantidad, vendedor=None):
     # 2) actualizar stock (-cantidad)
     actualizar_stock(producto_id, -int(cantidad))
 
-    # 3) crear factura en historial_facturas
+    # 3) crear factura en historial_facturas (GUARDAR FECHA COMO STRING ISO)
     factura_doc = {
         "venta_id": venta_id,
         "cliente": cliente.get("nombre", "") if isinstance(cliente, dict) else "",
@@ -156,7 +156,7 @@ def registrar_venta(cliente, producto_id, cantidad, vendedor=None):
         "producto": prod.get("nombre", ""),
         "cantidad": int(cantidad),
         "total": total,
-        "fecha": datetime.utcnow(),
+        "fecha": datetime.utcnow().isoformat(),  # ✅ CAMBIO: convertir a string ISO
         "vendedor": str(vendedor) if vendedor else None
     }
     facturas.insert(factura_doc)
@@ -205,6 +205,10 @@ def obtener_ventas_por_periodo(fecha_inicio, fecha_fin):
     Retorna un diccionario con total de ventas, cantidad de transacciones, etc.
     """
     try:
+        # ✅ CAMBIO: Convertir datetime a string ISO para comparación
+        fecha_inicio_str = fecha_inicio.isoformat() if isinstance(fecha_inicio, datetime) else fecha_inicio
+        fecha_fin_str = fecha_fin.isoformat() if isinstance(fecha_fin, datetime) else fecha_fin
+        
         aql = """
         FOR venta IN ventas
             FILTER venta.fecha >= @fecha_inicio AND venta.fecha <= @fecha_fin
@@ -219,8 +223,8 @@ def obtener_ventas_por_periodo(fecha_inicio, fecha_fin):
             }
         """
         cursor = db.aql.execute(aql, bind_vars={
-            "fecha_inicio": fecha_inicio,
-            "fecha_fin": fecha_fin
+            "fecha_inicio": fecha_inicio_str,
+            "fecha_fin": fecha_fin_str
         })
         resultado = list(cursor)
         
@@ -251,6 +255,10 @@ def obtener_ventas_detalladas_por_periodo(fecha_inicio, fecha_fin):
     Obtiene lista detallada de ventas por periodo con información de cliente y producto.
     """
     try:
+        # ✅ CAMBIO: Convertir datetime a string ISO para comparación
+        fecha_inicio_str = fecha_inicio.isoformat() if isinstance(fecha_inicio, datetime) else fecha_inicio
+        fecha_fin_str = fecha_fin.isoformat() if isinstance(fecha_fin, datetime) else fecha_fin
+        
         aql = """
         FOR venta IN ventas
             FILTER venta.fecha >= @fecha_inicio AND venta.fecha <= @fecha_fin
@@ -276,8 +284,8 @@ def obtener_ventas_detalladas_por_periodo(fecha_inicio, fecha_fin):
             }
         """
         cursor = db.aql.execute(aql, bind_vars={
-            "fecha_inicio": fecha_inicio,
-            "fecha_fin": fecha_fin
+            "fecha_inicio": fecha_inicio_str,
+            "fecha_fin": fecha_fin_str
         })
         
         return list(cursor)
