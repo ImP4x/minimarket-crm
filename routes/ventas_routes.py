@@ -16,7 +16,6 @@ from config import db
 import base64
 
 
-
 ventas_bp = Blueprint("ventas", __name__)
 
 
@@ -34,7 +33,6 @@ ventas_collection = get_collection("ventas")
 facturas_collection = get_collection("historial_facturas")
 productos_collection = get_collection("productos")
 stock_collection = get_collection("stock")
-
 
 
 # -------------------------
@@ -87,14 +85,27 @@ def generar_pdf_factura_mejorada(factura):
     elements.append(Spacer(1, 20))
     
     # ===== INFORMACIÓN DE FACTURA Y CLIENTE EN DOS COLUMNAS =====
-    # Usar _key en lugar de _id
     factura_id_str = str(factura.get('_key', ''))[:12]
+    
+    # ✅ CAMBIO: Manejar fecha como string ISO
+    fecha_str = factura.get('fecha', '')
+    if isinstance(fecha_str, str):
+        try:
+            fecha_obj = datetime.fromisoformat(fecha_str.replace('Z', '+00:00'))
+            fecha_formato = fecha_obj.strftime('%d/%m/%Y')
+            hora_formato = fecha_obj.strftime('%H:%M:%S')
+        except:
+            fecha_formato = fecha_str[:10]
+            hora_formato = fecha_str[11:19] if len(fecha_str) > 19 else '00:00:00'
+    else:
+        fecha_formato = 'N/A'
+        hora_formato = 'N/A'
     
     info_izquierda = f"""
     <b><font color='#165d2a' size='12'>INFORMACIÓN DE FACTURA</font></b><br/>
     <b>ID:</b> {factura_id_str}...<br/>
-    <b>Fecha:</b> {factura['fecha'].strftime('%d/%m/%Y')}<br/>
-    <b>Hora:</b> {factura['fecha'].strftime('%H:%M:%S')}<br/>
+    <b>Fecha:</b> {fecha_formato}<br/>
+    <b>Hora:</b> {hora_formato}<br/>
     <b>Atendido por:</b> {factura.get('vendedor', 'No disponible')}
     """
     
@@ -245,8 +256,6 @@ def generar_pdf_factura_mejorada(factura):
     return buffer.getvalue()
 
 
-
-
 # Mantener función original para compatibilidad
 def generar_pdf_factura(factura):
     """Genera un PDF en memoria con los datos de la factura y devuelve los bytes."""
@@ -257,7 +266,14 @@ def generar_pdf_factura(factura):
 
     p.setFont("Helvetica", 12)
     p.drawString(50, 740, f"Factura ID: {str(factura.get('_key', ''))}")
-    p.drawString(50, 720, f"Fecha: {factura['fecha'].strftime('%Y-%m-%d %H:%M:%S')}")
+    
+    # ✅ CAMBIO: Manejar fecha como string ISO
+    fecha_str = factura.get('fecha', 'N/A')
+    if isinstance(fecha_str, str):
+        fecha_display = fecha_str[:19].replace('T', ' ')
+    else:
+        fecha_display = str(fecha_str)
+    p.drawString(50, 720, f"Fecha: {fecha_display}")
 
     # Línea de separación
     p.line(50, 710, 550, 710)
@@ -292,7 +308,6 @@ def generar_pdf_factura(factura):
     p.save()
     buffer.seek(0)
     return buffer.getvalue()
-
 
 
 # 📌 Registro de ventas (con carrito múltiple - UNA SOLA FACTURA)
@@ -377,24 +392,26 @@ def ventas():
                 return redirect(url_for("ventas.ventas"))
             
             # Crear UNA SOLA venta con todos los productos
+            # ✅ CAMBIO: Guardar fecha como string ISO
             venta_doc = {
                 "cliente_id": str(cliente.get("_key")),
                 "productos": productos_factura,
                 "total": total_factura,
-                "fecha": datetime.utcnow(),
+                "fecha": datetime.utcnow().isoformat(),  # ✅ String ISO
                 "vendedor": str(vendedor)
             }
             venta_res = ventas_collection.insert(venta_doc)
             venta_id = venta_res["_key"]
             
             # Crear UNA SOLA factura con todos los productos
+            # ✅ CAMBIO: Guardar fecha como string ISO
             factura_doc = {
                 "venta_id": venta_id,
                 "cliente": cliente.get("nombre", ""),
                 "cliente_email": cliente.get("email", ""),
                 "productos": productos_factura,
                 "total": total_factura,
-                "fecha": datetime.utcnow(),
+                "fecha": datetime.utcnow().isoformat(),  # ✅ String ISO
                 "vendedor": str(vendedor)
             }
             factura_res = facturas_collection.insert(factura_doc)
@@ -428,7 +445,6 @@ def ventas():
     return render_template("ventas.html", productos=productos_list, clientes=clientes)
 
 
-
 # 📌 Ver factura en HTML
 @ventas_bp.route("/ventas/factura/<venta_id>")
 def ver_factura(venta_id):
@@ -441,7 +457,6 @@ def ver_factura(venta_id):
         return redirect(url_for("ventas.ventas"))
 
     return render_template("factura.html", factura=factura)
-
 
 
 # 📌 Descargar factura en PDF (desde base64)
@@ -466,7 +481,6 @@ def descargar_factura_pdf(venta_id):
     )
 
 
-
 # 📌 Listar todas las facturas
 @ventas_bp.route("/ventas/facturas")
 def listar_facturas_view():
@@ -477,7 +491,6 @@ def listar_facturas_view():
     return render_template("facturas.html", facturas=facturas_list)
 
 
-
 # 📌 Mostrar stock actual
 @ventas_bp.route("/ventas/stock")
 def ver_stock():
@@ -486,7 +499,6 @@ def ver_stock():
 
     productos_list = listar_productos()
     return render_template("stock.html", productos=productos_list)
-
 
 
 # 📊 NUEVO: Reporte de ventas con filtros de periodo
