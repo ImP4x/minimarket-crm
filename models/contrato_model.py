@@ -1,5 +1,7 @@
 from datetime import datetime
 from config import db
+import unicodedata
+
 
 # Obtener o crear colecciones
 def get_collection(name):
@@ -9,9 +11,20 @@ def get_collection(name):
     else:
         return db.create_collection(name)
 
+
 contratos = get_collection("contratos")
 empleados = get_collection("empleados")
 counters = get_collection("counters")
+
+
+def remover_acentos(texto):
+    """Remueve tildes y acentos de un texto para búsqueda insensible"""
+    if not texto:
+        return ""
+    texto_normalizado = unicodedata.normalize('NFD', str(texto))
+    texto_sin_acentos = ''.join(c for c in texto_normalizado if unicodedata.category(c) != 'Mn')
+    return texto_sin_acentos
+
 
 def obtener_siguiente_id(nombre_secuencia="contrato"):
     """Obtiene el siguiente ID secuencial para contratos"""
@@ -29,6 +42,7 @@ def obtener_siguiente_id(nombre_secuencia="contrato"):
     except Exception as e:
         print(f"❌ Error obtener_siguiente_id: {e}")
         return 1
+
 
 def crear_contrato(empleado_id, tipo_contrato, fecha_inicio, fecha_fin, 
                    salario, cargo, observaciones=""):
@@ -54,9 +68,14 @@ def crear_contrato(empleado_id, tipo_contrato, fecha_inicio, fecha_fin,
         print(f"❌ Error crear_contrato: {e}")
         return None
 
+
 def listar_contratos(busqueda=None):
     """Lista todos los contratos con información del empleado"""
     if busqueda:
+        # Remover acentos de la búsqueda
+        busqueda_sin_acentos = remover_acentos(busqueda).lower()
+        
+        # Obtener todos los contratos con empleados
         aql = """
         FOR contrato IN contratos
             LET empleado = FIRST(
@@ -64,16 +83,36 @@ def listar_contratos(busqueda=None):
                     FILTER e._key == contrato.empleado_id
                     RETURN e
             )
-            FILTER LOWER(empleado.nombre) LIKE LOWER(@busqueda)
-                OR LOWER(empleado.apellido) LIKE LOWER(@busqueda)
-                OR LOWER(contrato.tipo_contrato) LIKE LOWER(@busqueda)
             SORT contrato.fecha_registro DESC
             RETURN MERGE(contrato, {
                 empleado_nombre: empleado ? CONCAT(empleado.nombre, " ", empleado.apellido) : "Empleado no encontrado",
-                empleado_documento: empleado ? empleado.nro_documento : "N/A"
+                empleado_documento: empleado ? empleado.nro_documento : "N/A",
+                empleado_nombre_completo: empleado ? empleado.nombre : "",
+                empleado_apellido_completo: empleado ? empleado.apellido : ""
             })
         """
-        cursor = db.aql.execute(aql, bind_vars={"busqueda": f"%{busqueda}%"})
+        cursor = db.aql.execute(aql)
+        todos_contratos = list(cursor)
+        
+        # Filtrar en Python con búsqueda insensible a acentos
+        resultados = []
+        for contrato in todos_contratos:
+            # Remover acentos de los campos a buscar
+            nombre = remover_acentos(contrato.get('empleado_nombre_completo', '')).lower()
+            apellido = remover_acentos(contrato.get('empleado_apellido_completo', '')).lower()
+            documento = remover_acentos(contrato.get('empleado_documento', '')).lower()
+            tipo_contrato = remover_acentos(contrato.get('tipo_contrato', '')).lower()
+            cargo = remover_acentos(contrato.get('cargo', '')).lower()
+            
+            # Buscar en todos los campos
+            if (busqueda_sin_acentos in nombre or 
+                busqueda_sin_acentos in apellido or 
+                busqueda_sin_acentos in documento or
+                busqueda_sin_acentos in tipo_contrato or
+                busqueda_sin_acentos in cargo):
+                resultados.append(contrato)
+        
+        return resultados
     else:
         aql = """
         FOR contrato IN contratos
@@ -89,8 +128,8 @@ def listar_contratos(busqueda=None):
             })
         """
         cursor = db.aql.execute(aql)
-    
-    return list(cursor)
+        return list(cursor)
+
 
 def obtener_contrato_por_id(contrato_id):
     """Obtiene un contrato por su _key"""
@@ -98,6 +137,7 @@ def obtener_contrato_por_id(contrato_id):
         return contratos.get(str(contrato_id))
     except Exception:
         return None
+
 
 def actualizar_contrato(contrato_id, tipo_contrato=None, fecha_inicio=None,
                        fecha_fin=None, salario=None, cargo=None, observaciones=None):
@@ -122,6 +162,7 @@ def actualizar_contrato(contrato_id, tipo_contrato=None, fecha_inicio=None,
     except Exception as e:
         print(f"❌ Error actualizar_contrato: {e}")
         return {"matched_count": 0, "modified_count": 0}
+
 
 def eliminar_contrato(contrato_id):
     """Elimina un contrato por su _key"""
