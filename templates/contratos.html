@@ -45,7 +45,7 @@
             <div class="form-row">
                 <div class="form-group">
                     <label>Fecha Inicio *</label>
-                    <input type="date" name="fecha_inicio" class="form-control" required>
+                    <input type="date" name="fecha_inicio" id="fechaInicioCrear" class="form-control" required>
                 </div>
                 <div class="form-group">
                     <label>Fecha Fin <span style="color: #999; font-size: 0.9em;">(No aplica para Indefinido)</span></label>
@@ -134,26 +134,71 @@
 </div>
 
 <script>
-// 🔧 DESHABILITAR FECHA FIN PARA CONTRATOS INDEFINIDOS (CREAR)
+// 🔧 VALIDACIONES DE FECHAS
 document.addEventListener('DOMContentLoaded', function() {
     const tipoContratoCrear = document.getElementById('tipoContratoCrear');
+    const fechaInicioCrear = document.getElementById('fechaInicioCrear');
     const fechaFinCrear = document.getElementById('fechaFinCrear');
     
+    // Obtener fecha de hoy en formato YYYY-MM-DD
+    const hoy = new Date().toISOString().split('T')[0];
+    
+    // ✅ VALIDACIÓN 1: Fecha inicio NO puede ser anterior a hoy
+    fechaInicioCrear.setAttribute('min', hoy);
+    
+    // ✅ VALIDACIÓN 2: Fecha fin debe ser posterior a fecha inicio
+    fechaInicioCrear.addEventListener('change', function() {
+        if (fechaInicioCrear.value) {
+            fechaFinCrear.setAttribute('min', fechaInicioCrear.value);
+            
+            // Si fecha fin ya estaba seleccionada y es anterior a la nueva fecha inicio, limpiarla
+            if (fechaFinCrear.value && fechaFinCrear.value < fechaInicioCrear.value) {
+                fechaFinCrear.value = '';
+                alert('⚠️ La fecha fin debe ser posterior a la fecha de inicio');
+            }
+        }
+    });
+    
+    // 🔧 DESHABILITAR FECHA FIN PARA CONTRATOS INDEFINIDOS (CREAR)
     function toggleFechaFinCrear() {
         if (tipoContratoCrear.value === 'Indefinido') {
             fechaFinCrear.disabled = true;
             fechaFinCrear.value = '';
+            fechaFinCrear.removeAttribute('min');
             fechaFinCrear.style.backgroundColor = '#e9ecef';
             fechaFinCrear.style.cursor = 'not-allowed';
         } else {
             fechaFinCrear.disabled = false;
             fechaFinCrear.style.backgroundColor = '';
             fechaFinCrear.style.cursor = '';
+            // Restablecer validación de fecha mínima
+            if (fechaInicioCrear.value) {
+                fechaFinCrear.setAttribute('min', fechaInicioCrear.value);
+            }
         }
     }
     
     tipoContratoCrear.addEventListener('change', toggleFechaFinCrear);
     toggleFechaFinCrear(); // Ejecutar al cargar
+    
+    // 🔧 VALIDACIÓN ANTES DE ENVIAR FORMULARIO
+    document.getElementById('formCrearContrato').addEventListener('submit', function(e) {
+        // Validar que fecha inicio no sea anterior a hoy
+        if (fechaInicioCrear.value < hoy) {
+            e.preventDefault();
+            alert('⚠️ La fecha de inicio no puede ser anterior a hoy');
+            return false;
+        }
+        
+        // Validar que fecha fin sea posterior a fecha inicio (si no es indefinido)
+        if (tipoContratoCrear.value !== 'Indefinido' && fechaFinCrear.value) {
+            if (fechaFinCrear.value <= fechaInicioCrear.value) {
+                e.preventDefault();
+                alert('⚠️ La fecha fin debe ser posterior a la fecha de inicio');
+                return false;
+            }
+        }
+    });
     
     // 🔧 DESHABILITAR FECHA FIN PARA CONTRATOS INDEFINIDOS (EDITAR)
     const tiposContratoEditar = document.querySelectorAll('.tipoContratoEditar');
