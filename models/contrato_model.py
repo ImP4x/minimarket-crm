@@ -55,11 +55,11 @@ def generar_pdf_contrato(contrato_data, empleado_data):
     story = []
     styles = getSampleStyleSheet()
     
-    # 🎨 LOGO DE ECOMARKET
+        # 🎨 LOGO DE ECOMARKET
     try:
         logo_path = os.path.join('static', 'img', 'logo.png')
         if os.path.exists(logo_path):
-            logo = Image(logo_path, width=1.5*inch, height=1.5*inch)
+            logo = Image(logo_path, width=2*inch, height=0.69*inch)
             logo.hAlign = 'CENTER'
             story.append(logo)
             story.append(Spacer(1, 0.2*inch))
