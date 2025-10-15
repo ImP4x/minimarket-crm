@@ -2,10 +2,11 @@ from datetime import datetime
 from config import db
 import unicodedata
 import base64
+import os
 from io import BytesIO
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.units import inch
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.enums import TA_CENTER, TA_JUSTIFY
 from reportlab.lib import colors
@@ -53,6 +54,17 @@ def generar_pdf_contrato(contrato_data, empleado_data):
     doc = SimpleDocTemplate(buffer, pagesize=letter, topMargin=0.5*inch, bottomMargin=0.5*inch)
     story = []
     styles = getSampleStyleSheet()
+    
+    # 🎨 LOGO DE ECOMARKET
+    try:
+        logo_path = os.path.join('static', 'img', 'logo.png')
+        if os.path.exists(logo_path):
+            logo = Image(logo_path, width=1.5*inch, height=1.5*inch)
+            logo.hAlign = 'CENTER'
+            story.append(logo)
+            story.append(Spacer(1, 0.2*inch))
+    except Exception as e:
+        print(f"⚠️ No se pudo cargar el logo: {e}")
     
     # Estilos personalizados
     titulo_style = ParagraphStyle(
@@ -222,9 +234,9 @@ def generar_pdf_contrato(contrato_data, empleado_data):
     story.append(Paragraph(clausulas, body_style))
     story.append(Spacer(1, 0.3*inch))
     
-    # FIRMAS
+    # FIRMAS - CAMBIO A VILLAVICENCIO
     firma_texto = f"""
-    <b>Firmado en la ciudad de Bogotá D.C., a los {datetime.now().day} días del mes de 
+    <b>Firmado en la ciudad de Villavicencio - Meta, a los {datetime.now().day} días del mes de 
     {datetime.now().strftime('%B')} de {datetime.now().year}.</b>
     """
     story.append(Paragraph(firma_texto, body_style))
