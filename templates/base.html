@@ -11,7 +11,17 @@
     <!-- Header -->
     <header class="header">
         <div class="header-logo">
-            <img src="{{ url_for('static', filename='img/logo.png') }}" alt="EcoMarket Logo">
+            {% if session.get('usuario') %}
+                <a href="{% if session['usuario']['rol'] == 'administrador' %}{{ url_for('auth.dashboard_admin') }}{% else %}{{ url_for('auth.dashboard_vendedor') }}{% endif %}" 
+                   style="display: block; cursor: pointer; text-decoration: none;">
+                    <img src="{{ url_for('static', filename='img/logo.png') }}" 
+                         alt="EcoMarket Logo" 
+                         style="cursor: pointer;"
+                         title="Volver al inicio">
+                </a>
+            {% else %}
+                <img src="{{ url_for('static', filename='img/logo.png') }}" alt="EcoMarket Logo">
+            {% endif %}
         </div>
         
         {% if session.get('usuario') %}
