@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+{% block title %}Contratos de {{ empleado.nombre }} {{ empleado.apellido }} - EcoMarket{% endblock %}
+{% block content %}
+<div class="fade-in">
+    <h1 class="section-title">📋 Contratos del Empleado</h1>
+
+    <!-- Información del empleado -->
+    <div class="form-card">
+        <h2 class="section-title">Información del Empleado</h2>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem;">
+            <div>
+                <strong>Nombre Completo:</strong><br/>
+                {{ empleado.nombre }} {{ empleado.apellido }}
+            </div>
+            <div>
+                <strong>Documento:</strong><br/>
+                {{ empleado.nro_documento }}
+            </div>
+            <div>
+                <strong>Edad:</strong><br/>
+                {{ empleado.edad }} años
+            </div>
+            <div>
+                <strong>Cargo Actual:</strong><br/>
+                {{ empleado.cargo or 'N/A' }}
+            </div>
+            <div>
+                <strong>Correo:</strong><br/>
+                {{ empleado.correo or 'N/A' }}
+            </div>
+            <div>
+                <strong>Contacto:</strong><br/>
+                {{ empleado.nro_contacto or 'N/A' }}
+            </div>
+        </div>
+    </div>
+
+    <!-- Resumen de contratos -->
+    <div class="form-card" style="background: linear-gradient(135deg, #165d2a 0%, #2d8a4d 100%); color: white; text-align: center;">
+        <h2 style="color: white; margin: 0;">Total de Contratos: {{ cantidad }}</h2>
+        <p style="margin: 0.5rem 0 0 0;">Este empleado tiene {{ cantidad }} contrato(s) registrado(s)</p>
+    </div>
+
+    <!-- Lista de contratos -->
+    <h2 class="section-title">Lista de Contratos</h2>
+    <div class="table-container">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Tipo de Contrato</th>
+                    <th>Cargo</th>
+                    <th>Fecha Inicio</th>
+                    <th>Fecha Fin</th>
+                    <th>Salario</th>
+                    <th>Estado</th>
+                    <th>Observaciones</th>
+                    <th>Fecha Registro</th>
+                    <th>Acciones</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for c in contratos %}
+                <tr>
+                    <td><strong>{{ c.id_contrato }}</strong></td>
+                    <td>
+                        <span style="background: #165d2a; color: white; padding: 0.3rem 0.6rem; border-radius: 4px; font-size: 0.9em;">
+                            {{ c.tipo_contrato }}
+                        </span>
+                    </td>
+                    <td>{{ c.cargo }}</td>
+                    <td>{{ c.fecha_inicio }}</td>
+                    <td>
+                        {% if c.fecha_fin %}
+                            {{ c.fecha_fin }}
+                        {% else %}
+                            <span style="color: #2d8a4d; font-weight: bold;">∞ Indefinido</span>
+                        {% endif %}
+                    </td>
+                    <td><strong>${{ "{:,.0f}".format(c.salario) }}</strong></td>
+                    <td>
+                        {% set hoy = now().strftime('%Y-%m-%d') %}
+                        {% if c.fecha_fin and c.fecha_fin < hoy %}
+                            <span style="color: red; font-weight: bold;">❌ Finalizado</span>
+                        {% elif c.fecha_inicio <= hoy %}
+                            <span style="color: green; font-weight: bold;">✅ Activo</span>
+                        {% else %}
+                            <span style="color: orange; font-weight: bold;">⏳ Por iniciar</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ c.observaciones or '-' }}</td>
+                    <td>{{ c.fecha_registro[:10] if c.fecha_registro else '-' }}</td>
+                    <td style="white-space: nowrap;">
+                        <a href="{{ url_for('contrato.descargar_pdf_contrato', contrato_id=c._key) }}" class="btn btn-danger" title="Descargar PDF" style="text-decoration: none; display: inline-block; padding: 0.5rem 0.8rem; margin: 0 2px;">📄 PDF</a>
+                        <a href="{{ url_for('contrato.descargar_excel_contrato', contrato_id=c._key) }}" class="btn btn-success" title="Descargar Excel" style="text-decoration: none; display: inline-block; padding: 0.5rem 0.8rem; margin: 0 2px;">📊 Excel</a>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="10" style="text-align: center; color: #666;">
+                        Este empleado no tiene contratos registrados
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <div style="text-align: center; margin-top: 2rem;">
+        <a href="{{ url_for('contrato.contratos') }}" class="btn btn-secondary">← Volver a Contratos</a>
+        <a href="{{ url_for('auth.dashboard_admin') if session['usuario']['rol'] == 'administrador' else url_for('auth.dashboard_vendedor') }}" 
+           class="btn btn-secondary">🏠 Volver al Panel</a>
+    </div>
+</div>
+{% endblock %}

@@ -7,7 +7,7 @@
     <!-- 🔎 Buscar -->
     <div class="search-bar">
         <form method="GET" action="{{ url_for('contrato.contratos') }}" style="display: flex; gap: 1rem; align-items: center; width: 100%;">
-            <input type="text" name="q" placeholder="Buscar por nombre de empleado o tipo de contrato" value="{{ q or '' }}" class="search-input">
+            <input type="text" name="q" placeholder="Buscar por nombre, documento, tipo de contrato o cargo" value="{{ q or '' }}" class="search-input">
             <button class="btn btn-secondary" type="submit">🔍 Buscar</button>
         </form>
     </div>
@@ -15,7 +15,7 @@
     <!-- ➕ Crear -->
     <div class="form-card">
         <h2 class="section-title">Crear Nuevo Contrato</h2>
-        <form method="POST" action="{{ url_for('contrato.contratos') }}">
+        <form method="POST" action="{{ url_for('contrato.contratos') }}" id="formCrearContrato">
             <div class="form-row">
                 <div class="form-group">
                     <label>Empleado *</label>
@@ -28,7 +28,7 @@
                 </div>
                 <div class="form-group">
                     <label>Tipo de Contrato *</label>
-                    <select name="tipo_contrato" class="form-control" required>
+                    <select name="tipo_contrato" id="tipoContratoCrear" class="form-control" required>
                         <option value="">Seleccionar...</option>
                         <option value="Indefinido">Indefinido</option>
                         <option value="Fijo">Fijo</option>
@@ -48,26 +48,26 @@
                     <input type="date" name="fecha_inicio" class="form-control" required>
                 </div>
                 <div class="form-group">
-                    <label>Fecha Fin</label>
-                    <input type="date" name="fecha_fin" class="form-control">
+                    <label>Fecha Fin <span style="color: #999; font-size: 0.9em;">(No aplica para Indefinido)</span></label>
+                    <input type="date" name="fecha_fin" id="fechaFinCrear" class="form-control">
                 </div>
                 <div class="form-group">
                     <label>Salario *</label>
-                    <input type="number" name="salario" class="form-control" min="0" step="0.01" required>
+                    <input type="number" name="salario" class="form-control" min="0" step="1" required placeholder="Ej: 1500000">
                 </div>
             </div>
             <div class="form-row">
                 <div class="form-group">
                     <label>Observaciones</label>
-                    <textarea name="observaciones" class="form-control" rows="2"></textarea>
+                    <textarea name="observaciones" class="form-control" rows="2" placeholder="Información adicional del contrato"></textarea>
                 </div>
             </div>
-            <button class="btn btn-success" type="submit">✅ Crear Contrato</button>
+            <button class="btn btn-success" type="submit">✅ Crear Contrato y Generar PDF</button>
         </form>
     </div>
 
     <!-- 📋 Listado CON SCROLL HORIZONTAL -->
-    <h2 class="section-title">Lista de Contratos</h2>
+    <h2 class="section-title">Lista de Contratos ({{ contratos|length }})</h2>
     <div class="table-container">
         <table class="table">
             <thead>
@@ -88,12 +88,12 @@
             <tbody>
                 {% for c in contratos %}
                 <tr>
-                    <form method="POST" action="{{ url_for('contrato.editar_contrato', contrato_id=c._key) }}">
+                    <form method="POST" action="{{ url_for('contrato.editar_contrato', contrato_id=c._key) }}" style="display: contents;">
                         <td><strong>{{ c.id_contrato }}</strong></td>
                         <td>{{ c.empleado_nombre }}</td>
                         <td>{{ c.empleado_documento }}</td>
                         <td>
-                            <select name="tipo_contrato">
+                            <select name="tipo_contrato" class="tipoContratoEditar" data-row="{{ loop.index }}">
                                 <option value="Indefinido" {% if c.tipo_contrato == "Indefinido" %}selected{% endif %}>Indefinido</option>
                                 <option value="Fijo" {% if c.tipo_contrato == "Fijo" %}selected{% endif %}>Fijo</option>
                                 <option value="Obra o Labor" {% if c.tipo_contrato == "Obra o Labor" %}selected{% endif %}>Obra o Labor</option>
@@ -103,18 +103,20 @@
                         </td>
                         <td><input type="text" name="cargo" value="{{ c.cargo }}"></td>
                         <td><input type="date" name="fecha_inicio" value="{{ c.fecha_inicio }}"></td>
-                        <td><input type="date" name="fecha_fin" value="{{ c.fecha_fin or '' }}"></td>
-                        <td><input type="number" name="salario" value="{{ c.salario }}" step="0.01"></td>
+                        <td><input type="date" name="fecha_fin" class="fechaFinEditar" data-row="{{ loop.index }}" value="{{ c.fecha_fin or '' }}"></td>
+                        <td><input type="number" name="salario" value="{{ c.salario }}" step="1"></td>
                         <td><textarea name="observaciones">{{ c.observaciones }}</textarea></td>
                         <td>{{ c.fecha_registro[:10] if c.fecha_registro else '-' }}</td>
-                        <td>
-                            <button class="btn btn-success" type="submit">💾</button>
+                        <td style="white-space: nowrap;">
+                            <button class="btn btn-success" type="submit" title="Guardar cambios">💾</button>
+                            <a href="{{ url_for('contrato.descargar_pdf_contrato', contrato_id=c._key) }}" class="btn btn-danger" title="Descargar PDF" style="text-decoration: none; display: inline-block; padding: 0.5rem 0.8rem; margin: 0 2px;">📄</a>
+                            <a href="{{ url_for('contrato.descargar_excel_contrato', contrato_id=c._key) }}" class="btn btn-success" title="Descargar Excel" style="text-decoration: none; display: inline-block; padding: 0.5rem 0.8rem; margin: 0 2px;">📊</a>
                         </td>
                     </form>
                     <td>
                         <form method="POST" action="{{ url_for('contrato.eliminar_contrato_route', contrato_id=c._key) }}" 
-                              onsubmit="return confirm('¿Seguro que deseas eliminar este contrato?');">
-                            <button class="btn btn-danger" type="submit">🗑️</button>
+                              onsubmit="return confirm('¿Seguro que deseas eliminar este contrato y su PDF?');">
+                            <button class="btn btn-danger" type="submit" title="Eliminar contrato">🗑️</button>
                         </form>
                     </td>
                 </tr>
@@ -130,4 +132,52 @@
            class="btn btn-secondary">← Volver al Panel</a>
     </div>
 </div>
+
+<script>
+// 🔧 DESHABILITAR FECHA FIN PARA CONTRATOS INDEFINIDOS (CREAR)
+document.addEventListener('DOMContentLoaded', function() {
+    const tipoContratoCrear = document.getElementById('tipoContratoCrear');
+    const fechaFinCrear = document.getElementById('fechaFinCrear');
+    
+    function toggleFechaFinCrear() {
+        if (tipoContratoCrear.value === 'Indefinido') {
+            fechaFinCrear.disabled = true;
+            fechaFinCrear.value = '';
+            fechaFinCrear.style.backgroundColor = '#e9ecef';
+            fechaFinCrear.style.cursor = 'not-allowed';
+        } else {
+            fechaFinCrear.disabled = false;
+            fechaFinCrear.style.backgroundColor = '';
+            fechaFinCrear.style.cursor = '';
+        }
+    }
+    
+    tipoContratoCrear.addEventListener('change', toggleFechaFinCrear);
+    toggleFechaFinCrear(); // Ejecutar al cargar
+    
+    // 🔧 DESHABILITAR FECHA FIN PARA CONTRATOS INDEFINIDOS (EDITAR)
+    const tiposContratoEditar = document.querySelectorAll('.tipoContratoEditar');
+    
+    tiposContratoEditar.forEach(function(selectTipo) {
+        const row = selectTipo.getAttribute('data-row');
+        const inputFechaFin = document.querySelector(`.fechaFinEditar[data-row="${row}"]`);
+        
+        function toggleFechaFinEditar() {
+            if (selectTipo.value === 'Indefinido') {
+                inputFechaFin.disabled = true;
+                inputFechaFin.value = '';
+                inputFechaFin.style.backgroundColor = '#e9ecef';
+                inputFechaFin.style.cursor = 'not-allowed';
+            } else {
+                inputFechaFin.disabled = false;
+                inputFechaFin.style.backgroundColor = '';
+                inputFechaFin.style.cursor = '';
+            }
+        }
+        
+        selectTipo.addEventListener('change', toggleFechaFinEditar);
+        toggleFechaFinEditar(); // Ejecutar al cargar
+    });
+});
+</script>
 {% endblock %}
